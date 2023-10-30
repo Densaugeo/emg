@@ -10,6 +10,18 @@ static MUTEX_TEST: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 static POINTER: AtomicU32 = AtomicU32::new(0);
 static SIZE: AtomicU32 = AtomicU32::new(0);
 
+// WebAssembly is rumored to always be 32 bit, so assume that's the pointer size
+#[no_mangle]
+pub extern "C" fn pointer() -> i32 {
+  POINTER.load(Ordering::Relaxed) as i32
+}
+
+// WebAssembly is rumored to always be 32 bit, so assume that's the pointer size
+#[no_mangle]
+pub extern "C" fn size() -> i32 {
+  SIZE.load(Ordering::Relaxed) as i32
+}
+
 struct DryRunWriter {
   bytes_written: usize,
 }
@@ -41,18 +53,6 @@ pub struct Scene {
 pub struct Node {
   pub name: String,
   pub mesh: i32,
-}
-
-// WebAssembly is rumored to always be 32 bit, so assume that's the pointer size
-#[no_mangle]
-pub extern "C" fn pointer() -> i32 {
-  POINTER.load(Ordering::Relaxed) as i32
-}
-
-// WebAssembly is rumored to always be 32 bit, so assume that's the pointer size
-#[no_mangle]
-pub extern "C" fn size() -> i32 {
-  SIZE.load(Ordering::Relaxed) as i32
 }
 
 pub fn write_gltf(scene: Scene) -> Result<(), i32> {
