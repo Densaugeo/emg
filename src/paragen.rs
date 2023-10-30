@@ -6,7 +6,7 @@ pub mod prelude {
   pub use crate::Scene;
 }
 
-static MUTEX_TEST: Mutex<Vec<u8>> = Mutex::new(Vec::new());
+pub static MUTEX_TEST: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 static POINTER: AtomicU32 = AtomicU32::new(0);
 static SIZE: AtomicU32 = AtomicU32::new(0);
 
@@ -55,33 +55,15 @@ pub struct Node {
   pub mesh: i32,
 }
 
-pub fn write_gltf(scene: Scene) -> Result<(), i32> {
+pub fn write_gltf(buffer: &mut Vec<u8>, scene: Scene) {
   let mut dry_run_writer = DryRunWriter::new();
   serde_json::ser::to_writer(&mut dry_run_writer, &scene).unwrap();
   let space_required = dry_run_writer.bytes_written;
   
-  match MUTEX_TEST.try_lock() {
-    Ok(mut guard) => {
-      guard.reserve_exact(space_required);
-      serde_json::ser::to_writer(&mut (*guard), &scene).unwrap();
-      guard.shrink_to_fit();
-      
-      POINTER.store((*guard).as_ptr() as u32, Ordering::Relaxed);
-      SIZE.store(guard.len() as u32, Ordering::Relaxed);
-    },
-    // TODO Find a way to throw this error to JS
-    Err(_) => return Err(2),
-  }
+  buffer.reserve_exact(space_required);
+  serde_json::ser::to_writer(&mut (*buffer), &scene).unwrap();
+  buffer.shrink_to_fit();
   
-  Ok(())
-}
-
-pub fn clear_gltf() -> Result<(), i32> {
-  match MUTEX_TEST.try_lock() {
-    Ok(mut guard) => *guard = Vec::new(),
-    // TODO Find a way to throw this error to JS
-    Err(_e) => return Err(1),
-  }
-  
-  Ok(())
+  POINTER.store(buffer.as_ptr() as u32, Ordering::Relaxed);
+  SIZE.store(buffer.len() as u32, Ordering::Relaxed);
 }

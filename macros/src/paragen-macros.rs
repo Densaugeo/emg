@@ -67,19 +67,18 @@ pub fn paragen(
     #[automatically_derived]
     #[no_mangle]
     pub extern "C" fn #full_name(#args) -> i32 {
-      match paragen::clear_gltf() {
-        Ok(_) => {},
-        Err(code) => return code,
-      }
-      
-      let scene = match #base_name(#arg_names) {
-        Ok(scene) => scene,
-        Err(code) => return code,
-      };
-      
-      match paragen::write_gltf(scene) {
-        Ok(_) => {},
-        Err(code) => return code,
+      match paragen::MUTEX_TEST.try_lock() {
+        Err(_) => return 1,
+        Ok(mut guard) => {
+          *guard = Vec::new();
+          
+          let scene = match #base_name(#arg_names) {
+            Err(code) => return code,
+            Ok(scene) => scene,
+          };
+          
+          paragen::write_gltf(&mut guard, scene);
+        },
       }
       
       0
