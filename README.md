@@ -3,7 +3,6 @@ Parametrically generate .gltf using WebAssembly modules
 
 ## TODO
 
-- Proper error codes
 - Figure out how to distribute Cargo.toml optimizations
 - Tests for the macro
 - Tests for the actual module

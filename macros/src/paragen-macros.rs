@@ -49,8 +49,8 @@ pub fn paragen(
     }
   }
   
-  let expected_return_type: syn::Type = syn::parse_str("Result<Scene, i32>"
-    ).unwrap();
+  let expected_return_type: syn::Type = syn::parse_str(
+    "Result<Scene, ErrorCode>").unwrap();
   
   match signature.output.clone() {
     syn::ReturnType::Type(_, box_type) => {
@@ -68,12 +68,12 @@ pub fn paragen(
     #[no_mangle]
     pub extern "C" fn #full_name(#args) -> i32 {
       match paragen::MUTEX_TEST.try_lock() {
-        Err(_) => return 1,
+        Err(_) => return ErrorCode::Mutex as i32,
         Ok(mut guard) => {
           *guard = Vec::new();
           
           let scene = match #base_name(#arg_names) {
-            Err(code) => return code,
+            Err(code) => return code as i32,
             Ok(scene) => scene,
           };
           
@@ -81,7 +81,7 @@ pub fn paragen(
         },
       }
       
-      0
+      ErrorCode::None as i32
     }
   })
 }

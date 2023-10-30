@@ -4,6 +4,7 @@ use std::sync::atomic::{Ordering, AtomicU32};
 pub mod prelude {
   pub use paragen_macros::paragen;
   pub use crate::Scene;
+  pub use crate::ErrorCode;
 }
 
 pub static MUTEX_TEST: Mutex<Vec<u8>> = Mutex::new(Vec::new());
@@ -20,6 +21,15 @@ pub extern "C" fn pointer() -> i32 {
 #[no_mangle]
 pub extern "C" fn size() -> i32 {
   SIZE.load(Ordering::Relaxed) as i32
+}
+
+// These error codes are return from WebAssembly functions, so must use a
+// WebAssembly variable type
+#[repr(i32)]
+pub enum ErrorCode {
+    None = 0,
+    Mutex = 1,
+    Generation = 2,
 }
 
 struct DryRunWriter {
