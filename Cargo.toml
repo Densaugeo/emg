@@ -13,8 +13,8 @@ description = """
 Parametrically generate .gltf using WebAssembly modules
 """
 
-#[lib]
-#crate-type = ["cdylib"]
+[lib]
+path = "src/paragen.rs"
 
 [dependencies]
 serde = { version = "1.0.189", features = ["derive"] }
