@@ -16,3 +16,4 @@ Parametrically generate .gltf using WebAssembly modules
 - Upload to crates.io
 - Structs for representing .gltf
 - And of course all the actual geometry work
+- Get an LSP set up and check support (VSCode + Kate would be nice)
