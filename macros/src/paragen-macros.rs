@@ -9,7 +9,7 @@ fn argument_type_error(node: impl syn::spanned::Spanned,
 fn return_type_error(node: impl syn::spanned::Spanned,
 ) -> proc_macro::TokenStream {
   quote::quote_spanned! {
-    node.span() => compile_error!("paragen return type must be `Result<Scene, \
+    node.span() => compile_error!("paragen return type must be `Result<GLTF, \
       i32>`");
   }.into()
 }
@@ -50,7 +50,7 @@ pub fn paragen(
   }
   
   let expected_return_type: syn::Type = syn::parse_str(
-    "Result<Scene, ErrorCode>").unwrap();
+    "Result<GLTF, ErrorCode>").unwrap();
   
   match signature.output.clone() {
     syn::ReturnType::Type(_, box_type) => {
@@ -72,12 +72,12 @@ pub fn paragen(
         Ok(mut guard) => {
           *guard = Vec::new();
           
-          let scene = match #base_name(#arg_names) {
+          let gltf = match #base_name(#arg_names) {
             Err(code) => return code as i32,
-            Ok(scene) => scene,
+            Ok(gltf) => gltf,
           };
           
-          paragen::write_gltf(&mut guard, scene);
+          paragen::write_gltf(&mut guard, gltf);
         },
       }
       
