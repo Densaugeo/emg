@@ -25,6 +25,19 @@ enum Subcommands {
   Inspect(ArgsForInspect),
 }
 
+#[derive(clap::ValueEnum, Clone, Default, Debug)]
+enum Format {
+    /// Pretty-printed GLTF text format (.gltf)
+    #[default]
+    Pretty,
+    
+    /// GLTF text format (.gltf)
+    GLTF,
+    
+    /// GLTF binary format (.glb)
+    GLB,
+}
+
 #[derive(clap::Args, Debug)]
 struct ArgsForGen {
   /// Path to .wasm file
@@ -36,9 +49,13 @@ struct ArgsForGen {
   /// Parameters to pass to model
   model_parameters: Vec<String>,
   
-  /// Not yet implemented - Will be used to specify format of result
-  #[clap(long)]
-  format: Option<u8>,
+  /// Output format
+  #[clap(short, long, default_value_t, value_enum)]
+  format: Format,
+  
+  /// Print additional debug info to stderr (stdout is reserved for GLTF output)
+  #[clap(short, long, default_value_t = false)]
+  verbose: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -59,7 +76,7 @@ fn gen(args: ArgsForGen) {
   let module = match wasmtime::Module::from_file(&engine, args.wasm) {
     Ok(m) => m,
     Err(e) => {
-      println!("Error: {:?}", e);
+      eprintln!("Error: {:?}", e);
       std::process::exit(2);
     },
   };
@@ -70,7 +87,7 @@ fn gen(args: ArgsForGen) {
   let instance = match wasmtime::Instance::new(&mut store, &module, &[]) {
     Ok(i) => i,
     Err(e) => {
-      println!("Error: {:?}", e);
+      eprintln!("Error: {:?}", e);
       std::process::exit(3);
     },
   };
@@ -80,14 +97,14 @@ fn gen(args: ArgsForGen) {
   ) {
     Some(f) => f,
     None => {
-      println!("Error: .wasm file does not contain the model `{}`", args.model);
+      eprintln!("Error: .wasm file does not contain the model `{}`", args.model);
       std::process::exit(4);
     }
   };
   
   let parameter_count = generate_model.ty(&store).params().len();
   if args.model_parameters.len() != parameter_count {
-    println!("Error: model expects {} parameters, but {} were given",
+    eprintln!("Error: model expects {} parameters, but {} were given",
       parameter_count, args.model_parameters.len());
     std::process::exit(5);
   }
@@ -100,7 +117,7 @@ fn gen(args: ArgsForGen) {
         match args.model_parameters[i].parse::<i32>() {
           Ok(v) => model_args.push(wasmtime::Val::from(v)),
           Err(_) => {
-            println!("Error: model parameter {} (`{}`) should be a 32-bit \
+            eprintln!("Error: model parameter {} (`{}`) should be a 32-bit \
               integer", i + 1, args.model_parameters[i]);
             std::process::exit(7);
           },
@@ -111,7 +128,7 @@ fn gen(args: ArgsForGen) {
         match args.model_parameters[i].parse::<i64>() {
           Ok(v) => model_args.push(wasmtime::Val::from(v)),
           Err(_) => {
-            println!("Error: model parameter {} (`{}`) should be a 64-bit \
+            eprintln!("Error: model parameter {} (`{}`) should be a 64-bit \
               integer", i + 1, args.model_parameters[i]);
             std::process::exit(7);
           },
@@ -122,7 +139,7 @@ fn gen(args: ArgsForGen) {
         match args.model_parameters[i].parse::<f32>() {
           Ok(v) => model_args.push(wasmtime::Val::from(v)),
           Err(_) => {
-            println!("Error: model parameter {} (`{}`) should be a 32-bit \
+            eprintln!("Error: model parameter {} (`{}`) should be a 32-bit \
               floating-point value", i + 1, args.model_parameters[i]);
             std::process::exit(7);
           },
@@ -133,7 +150,7 @@ fn gen(args: ArgsForGen) {
         match args.model_parameters[i].parse::<f64>() {
           Ok(v) => model_args.push(wasmtime::Val::from(v)),
           Err(_) => {
-            println!("Error: model parameter {} (`{}`) should be a 64-bit \
+            eprintln!("Error: model parameter {} (`{}`) should be a 64-bit \
               floating-point value", i + 1, args.model_parameters[i]);
             std::process::exit(7);
           },
@@ -141,7 +158,7 @@ fn gen(args: ArgsForGen) {
       },
       
       _ => {
-        println!("Error: paragen models only support parameters of type i32, \
+        eprintln!("Error: paragen models only support parameters of type i32, \
           i64, f32, or f64");
         std::process::exit(6);
       }
@@ -150,11 +167,14 @@ fn gen(args: ArgsForGen) {
     i += 1;
   }
   
-  println!("Extracted arguments for passing through to model: {:?}", model_args);
+  if args.verbose {
+    eprintln!("Extracted arguments for passing through to model: {:?}", 
+        model_args);
+  }
   
   let result_count = generate_model.ty(&store).results().len();
   if result_count != 1 {
-    println!("Error: paragen models must return a 32-bit integer error code");
+    eprintln!("Error: paragen models must return a 32-bit integer error code");
     std::process::exit(8);
   }
   
@@ -162,17 +182,16 @@ fn gen(args: ArgsForGen) {
   match generate_model.ty(&store).results().next().unwrap() {
     wasmtime::ValType::I32 => {},
     _ => {
-      println!("Error: paragen models must return a 32-bit integer error code");
+      eprintln!("Error: paragen models must return a 32-bit integer error code");
       std::process::exit(8);
     }
   }
   
-  println!("Trying to call some paragen functions...");
   let mut result = [wasmtime::Val::from(0)];
   match generate_model.call(&mut store, &model_args, &mut result) {
     Ok(_) => {},
     Err(e) => {
-      println!("Error: {:?}", e);
+      eprintln!("Error: {:?}", e);
       std::process::exit(9);
     },
   }
@@ -180,28 +199,120 @@ fn gen(args: ArgsForGen) {
   match result[0].i32().unwrap() {
     0 => {},
     e => {
-      println!("Error: model generation returned error code: {}", e);
+      eprintln!("Error: model generation returned error code: {}", e);
       std::process::exit(10);
     },
   }
   
+  let get_pointer = match instance.get_func(&mut store, "pointer") {
+    Some(function) => function,
+    None => {
+      eprintln!("Error: .wasm file is not a valid paragen module: missing \
+        required function `pointer()`");
+      std::process::exit(11);
+    },
+  };
+  if get_pointer.ty(&store).params().len() != 0 {
+    eprintln!("Error: .wasm file is not a valid paragen module: function \
+      `pointer()` must not accept any arguments");
+    std::process::exit(11);
+  }
+  if get_pointer.ty(&store).results().len() != 1 {
+    eprintln!("Error: .wasm file is not a valid paragen module: function \
+      `pointer()` must return one result");
+    std::process::exit(11);
+  }
+  // .unwrap() acceptable here because the length is asserted == 1
+  match get_pointer.ty(&store).results().next().unwrap() {
+    wasmtime::ValType::I32 => {},
+    _ => {
+      eprintln!("Error: .wasm file is not a valid paragen module: function \
+        `pointer()` must return a 32-bit integer");
+      std::process::exit(11);
+    }
+  }
   let mut pointer = [wasmtime::Val::from(0)];
-  instance.get_func(&mut store, "pointer").unwrap().call(&mut store, &[], &mut pointer).unwrap();
-  println!("Got pointer: {:?}", pointer);
+  match get_pointer.call(&mut store, &[], &mut pointer) {
+    Ok(_) => {},
+    Err(e) => {
+      eprintln!("Error: {:?}", e);
+      std::process::exit(9);
+    },
+  }
+  if args.verbose { eprintln!("Got pointer: {:?}", pointer) }
   
+  let get_size = match instance.get_func(&mut store, "size") {
+    Some(function) => function,
+    None => {
+      eprintln!("Error: .wasm file is not a valid paragen modules: missing \
+        required function `size()`");
+      std::process::exit(11);
+    },
+  };
+  if get_size.ty(&store).params().len() != 0 {
+    eprintln!("Error: .wasm file is not a valid paragen module: function \
+      `size()` must not accept any arguments");
+    std::process::exit(11);
+  }
+  if get_size.ty(&store).results().len() != 1 {
+    eprintln!("Error: .wasm file is not a valid paragen module: function \
+      `size()` must return one result");
+    std::process::exit(11);
+  }
+  // .unwrap() acceptable here because the length is asserted == 1
+  match get_size.ty(&store).results().next().unwrap() {
+    wasmtime::ValType::I32 => {},
+    _ => {
+      eprintln!("Error: .wasm file is not a valid paragen module: function \
+        `size()` must return a 32-bit integer");
+      std::process::exit(11);
+    }
+  }
   let mut size = [wasmtime::Val::from(0)];
-  instance.get_func(&mut store, "size").unwrap().call(&mut store, &[], &mut size).unwrap();
-  println!("Got size: {:?}", size);
+  match get_size.call(&mut store, &[], &mut size) {
+    Ok(_) => {},
+    Err(e) => {
+      eprintln!("Error: {:?}", e);
+      std::process::exit(9);
+    },
+  }
+  if args.verbose { eprintln!("Got size: {:?}", size) }
   
+  // Can .unwrap() because WebAssembly modules always have a "memory" export
+  let memory = instance.get_memory(&mut store, "memory").unwrap();
+  // Can .unwrap() because the types of pointer and size were asserted earlier
+  let pointer_plain_int = pointer[0].i32().unwrap() as usize;
+  let size_plain_int = size[0].i32().unwrap() as usize;
+  let memory_of_interest = &(memory.data(&store))[pointer_plain_int..pointer_plain_int + size_plain_int];
+  
+  let parsed: serde_json::Value = match  serde_json::de::from_slice(memory_of_interest) {
+    Ok(json) => json,
+    Err(e) => {
+      eprintln!("Error: model produced invalid JSON: {:?}", e);
+      std::process::exit(12);
+    },
+  };
+  
+  match args.format {
+    // Can .unwrap() because this JSON was just parsed, so it must be valid
+    Format::Pretty => {
+      println!("{}", serde_json::to_string_pretty(&parsed).unwrap());
+    },
+    Format::GLTF => println!("{}", serde_json::to_string(&parsed).unwrap()),
+    Format::GLB => {
+      eprintln!("Error: .glb generation is not supported yet");
+      std::process::exit(13);
+    },
+  }
 }
 
 fn serve(_args: ArgsForServe) {
-  println!("Not implemented yet");
+  eprintln!("Not implemented yet");
   std::process::exit(1);
 }
 
 fn inspect(_args: ArgsForInspect) {
-  println!("Not implemented yet");
+  eprintln!("Not implemented yet");
   std::process::exit(1);
 }
 

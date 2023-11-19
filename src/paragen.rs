@@ -539,6 +539,9 @@ pub enum Type {
 
 #[derive(Clone, serde::Serialize)]
 pub struct Accessor {
+  // Next time I modify this, I want to try out:
+  // #[serde(rename_all = "camelCase")]
+  
   #[serde(skip_serializing_if = "String::is_empty")]
   pub name: String,
   
