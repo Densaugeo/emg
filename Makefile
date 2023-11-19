@@ -1,7 +1,7 @@
 EXAMPLE=blocks
 
 build:
-	cargo build
+	cargo build --bin paragen --features cli
 
 build-example:
 	stat examples/$(EXAMPLE) > /dev/null
