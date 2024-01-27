@@ -31,6 +31,6 @@ lto = "fat"
 
 [dependencies]
 base64 = "0.21.5"
-# Local paragen copy used for paragen development. To use this example in
-# another project, replace the line below with `paragen = "VERSION"`
-paragen = { path = "../.." }
+# Local emg copy used for emg development. To use this example in
+# another project, replace the line below with `emg = "VERSION"`
+emg = { path = "../.." }

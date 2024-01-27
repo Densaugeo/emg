@@ -1,10 +1,10 @@
 [package]
-name = "paragen-macros"
+name = "emg-macros"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-path = "src/paragen-macros.rs"
+path = "src/emg-macros.rs"
 crate-type = ["proc-macro"]
 
 [dependencies]

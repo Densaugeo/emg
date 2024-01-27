@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-/// Paragen by Den Antares
+/// emg by Den Antares
 ///
-/// Various tools for working with Paragen .wasm files
+/// Various tools for working with emg .wasm files
 #[derive(clap::Parser, Debug)]
 #[clap(author, version)]
 struct Cli {
@@ -14,14 +14,14 @@ struct Cli {
 
 #[derive(clap::Subcommand, Debug)]
 enum Subcommands {
-  /// Generate a GLTF model using a Paragen .wasm file
+  /// Generate a GLTF model using an emg .wasm file
   Gen(ArgsForGen),
   
-  /// Not yet implemented - Will run a web server for viewing a Paragen .wasm
+  /// Not yet implemented - Will run a web server for viewing an emg .wasm
   /// file
   Serve(ArgsForServe),
   
-  /// Not yet implemented - Will report metadata from a Paragen .wasm file
+  /// Not yet implemented - Will report metadata from an emg .wasm file
   Inspect(ArgsForInspect),
 }
 
@@ -93,7 +93,7 @@ fn gen(args: ArgsForGen) {
   };
   
   let generate_model = match instance.get_func(&mut store,
-    (String::from("paragen_") + &args.model).as_str(),
+    (String::from("emg_") + &args.model).as_str(),
   ) {
     Some(f) => f,
     None => {
@@ -158,7 +158,7 @@ fn gen(args: ArgsForGen) {
       },
       
       _ => {
-        eprintln!("Error: paragen models only support parameters of type i32, \
+        eprintln!("Error: emg models only support parameters of type i32, \
           i64, f32, or f64");
         std::process::exit(6);
       }
@@ -174,7 +174,7 @@ fn gen(args: ArgsForGen) {
   
   let result_count = generate_model.ty(&store).results().len();
   if result_count != 1 {
-    eprintln!("Error: paragen models must return a 32-bit integer error code");
+    eprintln!("Error: emg models must return a 32-bit integer error code");
     std::process::exit(8);
   }
   
@@ -182,7 +182,7 @@ fn gen(args: ArgsForGen) {
   match generate_model.ty(&store).results().next().unwrap() {
     wasmtime::ValType::I32 => {},
     _ => {
-      eprintln!("Error: paragen models must return a 32-bit integer error code");
+      eprintln!("Error: emg models must return a 32-bit integer error code");
       std::process::exit(8);
     }
   }
@@ -207,18 +207,18 @@ fn gen(args: ArgsForGen) {
   let get_pointer = match instance.get_func(&mut store, "pointer") {
     Some(function) => function,
     None => {
-      eprintln!("Error: .wasm file is not a valid paragen module: missing \
+      eprintln!("Error: .wasm file is not a valid emg module: missing \
         required function `pointer()`");
       std::process::exit(11);
     },
   };
   if get_pointer.ty(&store).params().len() != 0 {
-    eprintln!("Error: .wasm file is not a valid paragen module: function \
+    eprintln!("Error: .wasm file is not a valid emg module: function \
       `pointer()` must not accept any arguments");
     std::process::exit(11);
   }
   if get_pointer.ty(&store).results().len() != 1 {
-    eprintln!("Error: .wasm file is not a valid paragen module: function \
+    eprintln!("Error: .wasm file is not a valid emg module: function \
       `pointer()` must return one result");
     std::process::exit(11);
   }
@@ -226,7 +226,7 @@ fn gen(args: ArgsForGen) {
   match get_pointer.ty(&store).results().next().unwrap() {
     wasmtime::ValType::I32 => {},
     _ => {
-      eprintln!("Error: .wasm file is not a valid paragen module: function \
+      eprintln!("Error: .wasm file is not a valid emg module: function \
         `pointer()` must return a 32-bit integer");
       std::process::exit(11);
     }
@@ -244,18 +244,18 @@ fn gen(args: ArgsForGen) {
   let get_size = match instance.get_func(&mut store, "size") {
     Some(function) => function,
     None => {
-      eprintln!("Error: .wasm file is not a valid paragen modules: missing \
+      eprintln!("Error: .wasm file is not a valid emg modules: missing \
         required function `size()`");
       std::process::exit(11);
     },
   };
   if get_size.ty(&store).params().len() != 0 {
-    eprintln!("Error: .wasm file is not a valid paragen module: function \
+    eprintln!("Error: .wasm file is not a valid emg module: function \
       `size()` must not accept any arguments");
     std::process::exit(11);
   }
   if get_size.ty(&store).results().len() != 1 {
-    eprintln!("Error: .wasm file is not a valid paragen module: function \
+    eprintln!("Error: .wasm file is not a valid emg module: function \
       `size()` must return one result");
     std::process::exit(11);
   }
@@ -263,7 +263,7 @@ fn gen(args: ArgsForGen) {
   match get_size.ty(&store).results().next().unwrap() {
     wasmtime::ValType::I32 => {},
     _ => {
-      eprintln!("Error: .wasm file is not a valid paragen module: function \
+      eprintln!("Error: .wasm file is not a valid emg module: function \
         `size()` must return a 32-bit integer");
       std::process::exit(11);
     }

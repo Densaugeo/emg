@@ -1,7 +1,7 @@
 fn argument_type_error(node: impl syn::spanned::Spanned,
 ) -> proc_macro::TokenStream {
   quote::quote_spanned! {
-    node.span() => compile_error!("paragen arguments must be `i32`, `i64`, \
+    node.span() => compile_error!("emg arguments must be `i32`, `i64`, \
       `f32`, or `f64`");
   }.into()
 }
@@ -9,13 +9,13 @@ fn argument_type_error(node: impl syn::spanned::Spanned,
 fn return_type_error(node: impl syn::spanned::Spanned,
 ) -> proc_macro::TokenStream {
   quote::quote_spanned! {
-    node.span() => compile_error!("paragen return type must be `Result<GLTF, \
+    node.span() => compile_error!("emg return type must be `Result<GLTF, \
       i32>`");
   }.into()
 }
 
 #[proc_macro_attribute]
-pub fn paragen(
+pub fn emg(
   _args: proc_macro::TokenStream,
   input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
@@ -24,7 +24,7 @@ pub fn paragen(
   let base_name = signature.ident.clone();
   let args = signature.inputs.clone();
   
-  let full_name = syn::Ident::new(format!("paragen_{base_name}").as_str(),
+  let full_name = syn::Ident::new(format!("emg_{base_name}").as_str(),
     base_name.clone().span());
   
   let mut arg_names: syn::punctuated::Punctuated<syn::Pat, syn::token::Comma> =
@@ -67,7 +67,7 @@ pub fn paragen(
     #[automatically_derived]
     #[no_mangle]
     pub extern "C" fn #full_name(#args) -> i32 {
-      match paragen::MUTEX_TEST.try_lock() {
+      match emg::MUTEX_TEST.try_lock() {
         Err(_) => return ErrorCode::Mutex as i32,
         Ok(mut guard) => {
           *guard = Vec::new();
@@ -77,7 +77,7 @@ pub fn paragen(
             Ok(gltf) => gltf,
           };
           
-          paragen::write_gltf(&mut guard, gltf);
+          emg::write_gltf(&mut guard, gltf);
         },
       }
       

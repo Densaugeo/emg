@@ -1,24 +1,24 @@
 [package]
-name = "paragen"
+name = "emg"
 version = "0.1.0"
 edition = "2021"
 authors = ["Den Antares"]
 license = "TODO"
 readme = "README.md"
 categories = ["wasm", "graphics"]
-repository = "https://github.com/Densaugeo/paragen"
+repository = "https://github.com/Densaugeo/emg"
 homepage = "TODO"
 documentation = "TODO"
 description = """
-Parametrically generate .gltf using WebAssembly modules
+Ethereal Model Generator - Procedurally generate .gltf using WebAssembly modules
 """
 
 [lib]
-path = "src/paragen.rs"
+path = "src/emg.rs"
 
 [[bin]]
-name = "paragen"
-path = "src/main.rs"
+name = "emg"
+path = "src/emg-cli.rs"
 required-features = ["cli"]
 
 [dependencies]
@@ -26,7 +26,7 @@ serde = { version = "1.0.189", features = ["derive"] }
 serde_json = "1.0.107"
 serde_tuple = "0.5.0"
 serde_repr = "0.1.17"
-paragen-macros = { path = "macros" }
+emg-macros = { path = "macros" }
 
 # Dependencies for the CLI tool
 clap = { version = "4.4.7", features = ["derive"], optional = true }

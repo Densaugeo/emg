@@ -2,7 +2,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{Ordering, AtomicU32};
 
 pub mod prelude {
-  pub use paragen_macros::paragen;
+  pub use emg_macros::emg;
   pub use crate::GLTF;
   pub use crate::Scene;
   pub use crate::Node;
@@ -80,7 +80,7 @@ impl Asset {
   pub fn new() -> Self {
     Self {
       copyright: String::from(""),
-      generator: String::from("Paragen v0.1.0"),
+      generator: String::from("emg v0.1.0"),
       version: String::from("2.0"),
       min_version: String::from("2.0"),
     }

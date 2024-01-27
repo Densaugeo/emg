@@ -1,6 +1,6 @@
-# paragen
+# emg
 
-Parametrically generate .gltf using WebAssembly modules
+Ethereal Model Generator - Procedurally generate .gltf using WebAssembly modules
 
 ## TODO
 
