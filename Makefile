@@ -1,7 +1,8 @@
 EXAMPLE=blocks
 
-build:
+build-cli:
 	cargo build --bin emg --features cli
+	# Binary is at ./target/debug/emg
 
 build-example:
 	stat examples/$(EXAMPLE) > /dev/null

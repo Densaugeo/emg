@@ -7,8 +7,11 @@ Ethereal Model Generator - Procedurally generate .gltf using WebAssembly modules
 - Tests for the macro
 - Tests for the actual module
 - Browser runtime
-- CLI runtime
+- CLI serve command
+- Tests for CLI
 - Simple example project
+- .glb generation should be default, other formats could be produced by CLI tool
+  * Maybe abbreviate buffers out of them? Optionally?
 - Some kind of starter project generator like cargo init
 - Is there a good way to warn users if Cargo.toml optimizations aren't set up?
 - CI setup

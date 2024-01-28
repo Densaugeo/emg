@@ -25,13 +25,24 @@ pub extern "C" fn size() -> i32 {
   SIZE.load(Ordering::Relaxed) as i32
 }
 
-// These error codes are return from WebAssembly functions, so must use a
+// These error codes are returned from WebAssembly functions, so must use a
 // WebAssembly variable type
+#[derive(Debug, Clone)]
 #[repr(i32)]
 pub enum ErrorCode {
-    None = 0,
-    Mutex = 1,
-    Generation = 2,
+  None = 0,
+  Mutex = 1,
+  Generation = 2,
+  NotImplemented = 3,
+  WebAssemblyCompile = 4,
+  WebAssemblyInstance = 5,
+  WebAssemblyExecution = 6,
+  ModuleNotEMG = 7,
+  ModelGeneratorNotFound = 8,
+  ParameterCount = 9,
+  ParameterType = 10,
+  ParameterOutOfRange = 11,
+  OutputNotGLB = 12,
 }
 
 struct DryRunWriter {
