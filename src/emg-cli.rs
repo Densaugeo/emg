@@ -76,11 +76,15 @@ struct ArgsForInspect {
   wasm: PathBuf,
 }
 
+// .engine and .module aren't accessed, I just keep them here to remind myself of
+// the wasmtime variables
+#[allow(dead_code)]
 struct EMGModule {
   engine: wasmtime::Engine,
   module: wasmtime::Module,
   store: wasmtime::Store<()>,
   instance: wasmtime::Instance,
+  
   generator_names: Vec<String>,
 }
 
@@ -106,13 +110,13 @@ impl EMGModule {
     let mut result = Self { engine, module, store, instance,
       generator_names: Vec::new() };
     
-    result.validate_pointer_accessor("pointer");
-    result.validate_pointer_accessor("size");
+    result.validate_pointer_accessor("model_pointer");
+    result.validate_pointer_accessor("model_size");
     
     let mut possible_model_generators = Vec::new();
     
     for export in result.instance.exports(&mut result.store) {
-      if export.name().starts_with("emg_") {
+      if export.name().starts_with("gen_") {
         // Converting to String "launders" the name to break all links with the
         // original string. Required by borrow checker
         possible_model_generators.push(String::from(export.name()));
@@ -190,7 +194,7 @@ fn gen(args: ArgsForGen) {
   let instance = emg_module.instance;
   
   let generator = match instance.get_func(&mut store,
-    (String::from("emg_") + &args.generator).as_str(),
+    (String::from("gen_") + &args.generator).as_str(),
   ) {
     Some(f) => f,
     None => fail(emg::ErrorCode::ModelGeneratorNotFound, format!(".wasm file \
@@ -274,12 +278,8 @@ fn gen(args: ArgsForGen) {
     },
   }
   
-  let get_pointer = match instance.get_func(&mut store, "pointer") {
-    Some(function) => function,
-    None => fail(emg::ErrorCode::ModuleNotEMG,
-      ".wasm file is not a valid emg module: missing \
-      required function `pointer()`"),
-  };
+  // Can use .unwrap() because validator checked this exists
+  let get_pointer = instance.get_func(&mut store, "model_pointer").unwrap();
   let mut pointer = [wasmtime::Val::from(0)];
   match get_pointer.call(&mut store, &[], &mut pointer) {
     Ok(_) => {},
@@ -288,12 +288,8 @@ fn gen(args: ArgsForGen) {
   }
   if args.verbose { eprintln!("Got pointer: {:?}", pointer) }
   
-  let get_size = match instance.get_func(&mut store, "size") {
-    Some(function) => function,
-    None => fail(emg::ErrorCode::ModuleNotEMG,
-      ".wasm file is not a valid emg modules: missing \
-        required function `size()`"),
-  };
+  // Can use .unwrap() because validator checked this exists
+  let get_size = instance.get_func(&mut store, "model_size").unwrap();
   let mut size = [wasmtime::Val::from(0)];
   match get_size.call(&mut store, &[], &mut size) {
     Ok(_) => {},

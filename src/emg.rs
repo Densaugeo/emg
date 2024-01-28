@@ -10,19 +10,19 @@ pub mod prelude {
 }
 
 pub static MUTEX_TEST: Mutex<Vec<u8>> = Mutex::new(Vec::new());
-static POINTER: AtomicU32 = AtomicU32::new(0);
-static SIZE: AtomicU32 = AtomicU32::new(0);
+static MODEL_POINTER: AtomicU32 = AtomicU32::new(0);
+static MODEL_SIZE: AtomicU32 = AtomicU32::new(0);
 
 // WebAssembly is rumored to always be 32 bit, so assume that's the pointer size
 #[no_mangle]
-pub extern "C" fn pointer() -> i32 {
-  POINTER.load(Ordering::Relaxed) as i32
+pub extern "C" fn model_pointer() -> i32 {
+  MODEL_POINTER.load(Ordering::Relaxed) as i32
 }
 
 // WebAssembly is rumored to always be 32 bit, so assume that's the pointer size
 #[no_mangle]
-pub extern "C" fn size() -> i32 {
-  SIZE.load(Ordering::Relaxed) as i32
+pub extern "C" fn model_size() -> i32 {
+  MODEL_SIZE.load(Ordering::Relaxed) as i32
 }
 
 // These error codes are returned from WebAssembly functions, so must use a
@@ -696,6 +696,6 @@ pub fn write_gltf(buffer: &mut Vec<u8>, gltf: GLTF) {
   serde_json::ser::to_writer_pretty(&mut (*buffer), &gltf).unwrap();
   buffer.shrink_to_fit();
   
-  POINTER.store(buffer.as_ptr() as u32, Ordering::Relaxed);
-  SIZE.store(buffer.len() as u32, Ordering::Relaxed);
+  MODEL_POINTER.store(buffer.as_ptr() as u32, Ordering::Relaxed);
+  MODEL_SIZE.store(buffer.len() as u32, Ordering::Relaxed);
 }

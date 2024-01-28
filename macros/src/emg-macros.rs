@@ -24,7 +24,7 @@ pub fn emg(
   let base_name = signature.ident.clone();
   let args = signature.inputs.clone();
   
-  let full_name = syn::Ident::new(format!("emg_{base_name}").as_str(),
+  let full_name = syn::Ident::new(format!("gen_{base_name}").as_str(),
     base_name.clone().span());
   
   let mut arg_names: syn::punctuated::Punctuated<syn::Pat, syn::token::Comma> =
