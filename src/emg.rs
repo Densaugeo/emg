@@ -128,6 +128,12 @@ pub struct GLTF {
   #[serde(skip_serializing_if = "Vec::is_empty")]
   pub buffers: Vec<Buffer>,
   
+  // TODO Not sure about the memory use effects of putting all GLB BIN data
+  // into one vector during model construction. Look into using a
+  // Vec<Vec<u8>> or similar when I have a suitable test setup
+  #[serde(skip_serializing)]
+  pub glb_bin: Vec<u8>,
+  
   // In the .gltf spec, but will have to wait for later
   /*pub animations: ??
   pub asset: ??
@@ -154,6 +160,7 @@ impl GLTF {
       accessors: Vec::new(),
       buffer_views: Vec::new(),
       buffers: Vec::new(),
+      glb_bin: Vec::new(),
     }
   }
 }
@@ -689,11 +696,48 @@ impl Buffer {
 
 pub fn write_gltf(buffer: &mut Vec<u8>, gltf: GLTF) {
   let mut dry_run_writer = DryRunWriter::new();
-  serde_json::ser::to_writer_pretty(&mut dry_run_writer, &gltf).unwrap();
-  let space_required = dry_run_writer.bytes_written;
+  serde_json::ser::to_writer(&mut dry_run_writer, &gltf).unwrap();
   
-  buffer.reserve_exact(space_required);
-  serde_json::ser::to_writer_pretty(&mut (*buffer), &gltf).unwrap();
+  // Per GLB spec, the length field of each chunk EXCLUDES headers and INCLUDES 
+  // padding
+  let json_padding = (4 - dry_run_writer.bytes_written % 4) % 4;
+  let json_length = dry_run_writer.bytes_written + json_padding;
+  let bin_padding = (4 - gltf.glb_bin.len() % 4) % 4;
+  let bin_length = gltf.glb_bin.len() + bin_padding;
+  
+  // Per GLB spec, overall length field INCLUDES headers
+  let mut glb_length = 12 + 8 + json_length;
+  if gltf.glb_bin.len() > 0 {
+    glb_length += 8 + bin_length;
+  }
+  
+  buffer.reserve_exact(glb_length);
+  
+  // GLB header
+  buffer.append(&mut String::from("glTF").into_bytes());
+  buffer.extend_from_slice(&2u32.to_le_bytes()); // GLTF version #
+  buffer.extend_from_slice(&(glb_length).to_le_bytes());
+  
+  // JSON chunk
+  buffer.extend_from_slice(&(json_length).to_le_bytes());
+  buffer.append(&mut String::from("JSON").into_bytes());
+  serde_json::ser::to_writer(&mut (*buffer), &gltf).unwrap();
+  for _ in 0..json_padding {
+    // Per GLB spec, JSON chunk is padded with ASCII spaces
+    buffer.push(0x20);
+  }
+  
+  // BIN chunk
+  if gltf.glb_bin.len() > 0 {
+    buffer.extend_from_slice(&(bin_length).to_le_bytes());
+    buffer.append(&mut String::from("BIN\0").into_bytes());
+    buffer.extend(gltf.glb_bin);
+    for _ in 0..bin_padding {
+      // Per GLB spec, BIN chunk is padded with zeroes
+      buffer.push(0);
+    }
+  }
+  
   buffer.shrink_to_fit();
   
   MODEL_POINTER.store(buffer.as_ptr() as u32, Ordering::Relaxed);

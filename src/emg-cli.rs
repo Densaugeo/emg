@@ -1,5 +1,6 @@
 use std::path::PathBuf;
-use std::fmt::Write;
+use std::fmt::Write as _;
+use std::io::Write as _;
 
 use clap::Parser;
 
@@ -305,7 +306,26 @@ fn gen(args: ArgsForGen) {
   let size_plain_int = size[0].i32().unwrap() as usize;
   let memory_of_interest = &(memory.data(&store))[pointer_plain_int..pointer_plain_int + size_plain_int];
   
-  let parsed: serde_json::Value = match  serde_json::de::from_slice(memory_of_interest) {
+  // Can't figure out how to get u32::from_le_bytes() to work in the middle of a
+  // slice
+  let json_start = 20;
+  let json_length: usize =
+    (memory_of_interest[json_start - 8] as usize)*0x1 +
+    (memory_of_interest[json_start - 7] as usize)*0x100 +
+    (memory_of_interest[json_start - 6] as usize)*0x10000 +
+    (memory_of_interest[json_start - 5] as usize)*0x1000000
+  ;
+  
+  let bin_start = json_start + json_length;
+  let bin_length: usize =
+    (memory_of_interest[bin_start - 8] as usize)*0x1 +
+    (memory_of_interest[bin_start - 7] as usize)*0x100 +
+    (memory_of_interest[bin_start - 6] as usize)*0x10000 +
+    (memory_of_interest[bin_start - 5] as usize)*0x1000000
+  ;
+  
+  let parsed: serde_json::Value = match serde_json::de::from_slice(
+    &memory_of_interest[json_start..json_start + json_length]) {
     Ok(json) => json,
     Err(e) => fail(emg::ErrorCode::OutputNotGLB,
       format!("model generated with invalid JSON: {:?}", e)),
@@ -317,8 +337,7 @@ fn gen(args: ArgsForGen) {
       println!("{}", serde_json::to_string_pretty(&parsed).unwrap());
     },
     Format::GLTF => println!("{}", serde_json::to_string(&parsed).unwrap()),
-    Format::GLB => fail(emg::ErrorCode::NotImplemented,
-      ".glb generation is not supported yet"),
+    Format::GLB => std::io::stdout().write_all(&memory_of_interest).unwrap(),
   }
 }
 
