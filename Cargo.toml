@@ -32,5 +32,9 @@ emg-macros = { path = "macros" }
 clap = { version = "4.4.7", features = ["derive"], optional = true }
 wasmtime = { version = "14.0.4", optional = true }
 
+[dev-dependencies]
+assert_cmd = "2.0.13"
+predicates = "3.1.0"
+
 [features]
 cli = ["dep:clap", "dep:wasmtime"]
