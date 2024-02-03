@@ -7,6 +7,8 @@ build-cli:
 build-example:
 	stat examples/$(EXAMPLE) > /dev/null
 	cd examples/$(EXAMPLE) && cargo build --target wasm32-unknown-unknown
+	ln -sf "$(EXAMPLE)/target/wasm32-unknown-unknown/debug/$(EXAMPLE).wasm" \
+		"examples/$(EXAMPLE).wasm"
 
 watch-example:
 	stat examples/$(EXAMPLE) > /dev/null
@@ -15,3 +17,14 @@ watch-example:
 		make build-example EXAMPLE=$(EXAMPLE); \
 		curl -X POST http://localhost:8000/api-reloadserver/trigger-reload; \
 	done
+
+test:
+	make build-cli
+	make build-example EXAMPLE=blocks
+	cargo test
+
+clean:
+	cargo clean
+	cd examples/blocks && cargo clean
+	rm examples/blocks.wasm
+	rm -rf examples/output/*

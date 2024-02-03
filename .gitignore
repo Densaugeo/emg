@@ -1,3 +1,5 @@
 # Match all Cargo.locks / targets including in subfolders
 Cargo.lock
 target
+
+examples/*.wasm

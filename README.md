@@ -10,11 +10,9 @@ Ethereal Model Generator - Procedurally generate .gltf using WebAssembly modules
 - CLI serve command
 - Tests for CLI
   * First test case added!
-  * Need to try out rstest
-  * Need to compare with known good model gen output
   * Need set of test model gens
-  * Need to sort out .wasm file locations and building them before tests
   * Need memory use info from emg-cli
+  * Numerous .wasm files for testing emg::ErrorCode::ModuleNotEMG/OutputNotGLB cases
 - Simple example project
 - .glb generation should be default, other formats could be produced by CLI tool
   * Maybe abbreviate buffers out of them? Optionally?
