@@ -26,5 +26,5 @@ test:
 clean:
 	cargo clean
 	cd examples/blocks && cargo clean
-	rm examples/blocks.wasm
+	rm -f examples/blocks.wasm
 	rm -rf examples/output/*
