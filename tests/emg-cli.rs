@@ -23,6 +23,15 @@ fn gen_sunny_day_pretty(mut cmd: Command) {
 }
 
 #[rstest]
+fn gen_sunny_day_gltf(mut cmd: Command) {
+  let expected = std::fs::read("tests/build_the_model.gltf").unwrap();
+  
+  cmd.arg("gen").arg("examples/blocks.wasm")
+     .arg("build_the_model").arg("1").arg("--format").arg("gltf")
+     .assert().code(ErrorCode::None as i32).stdout(expected);
+}
+
+#[rstest]
 fn gen_sunny_day_glb(mut cmd: Command) {
   let expected = std::fs::read("tests/build_the_model.glb").unwrap();
   
