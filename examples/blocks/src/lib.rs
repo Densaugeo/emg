@@ -167,12 +167,12 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
   add_three_u16s(&mut build_red_indices, 5, 7, 6);
   
   // -X side
-  add_three_u16s(&mut build_red_indices, 0, 1, 2);
-  add_three_u16s(&mut build_red_indices, 1, 3, 2);
+  add_three_u16s(&mut build_red_indices, 0, 2, 1);
+  add_three_u16s(&mut build_red_indices, 1, 2, 3);
   
   // +Y side
-  add_three_u16s(&mut build_red_indices, 0, 4, 1);
-  add_three_u16s(&mut build_red_indices, 1, 4, 5);
+  add_three_u16s(&mut build_red_indices, 0, 1, 4);
+  add_three_u16s(&mut build_red_indices, 1, 5, 4);
   
   // -Y side
   add_three_u16s(&mut build_red_indices, 2, 6, 3);
@@ -193,12 +193,12 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
   add_three_u16s(&mut build_black_indices, 5, 7, 6);
   
   // -X side
-  add_three_u16s(&mut build_black_indices, 0, 1, 2);
-  add_three_u16s(&mut build_black_indices, 1, 3, 2);
+  add_three_u16s(&mut build_black_indices, 0, 2, 1);
+  add_three_u16s(&mut build_black_indices, 1, 2, 3);
   
   // +Y side
-  add_three_u16s(&mut build_black_indices, 0, 4, 1);
-  add_three_u16s(&mut build_black_indices, 1, 4, 5);
+  add_three_u16s(&mut build_black_indices, 0, 1, 4);
+  add_three_u16s(&mut build_black_indices, 1, 5, 4);
   
   // -Y side
   add_three_u16s(&mut build_black_indices, 2, 6, 3);
