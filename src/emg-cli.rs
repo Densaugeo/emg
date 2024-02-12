@@ -3,6 +3,7 @@ use std::fmt::Write as _;
 use std::io::Write as _;
 
 use clap::Parser;
+use base64::Engine;
 
 fn fail<S: AsRef<str>>(code: emg::ErrorCode, message: S) -> ! {
   eprintln!("Error: {}", message.as_ref());
@@ -34,15 +35,16 @@ enum Subcommands {
 
 #[derive(clap::ValueEnum, Clone, Default, Debug)]
 enum Format {
-    /// Pretty-printed GLTF text format (.gltf)
+    /// GLTF binary format (.glb)
     #[default]
-    Pretty,
+    GLB,
     
     /// GLTF text format (.gltf)
     GLTF,
     
-    /// GLTF binary format (.glb)
-    GLB,
+    /// Pretty-printed GLTF text format (for debugging, may omit buffers
+    /// required for rendering)
+    Pretty,
 }
 
 #[derive(clap::Args, Debug)]
@@ -189,6 +191,127 @@ impl EMGModule {
   }
 }
 
+struct ChunkMetadata {
+  start: u32,
+  length: u32,
+}
+
+struct GLBMetadata {
+  json: ChunkMetadata,
+  bin: Option<ChunkMetadata>,
+}
+
+impl GLBMetadata {
+  fn from_glb(glb: &[u8]) -> Self {
+    if glb.len() < 24 {
+      fail(emg::ErrorCode::OutputNotGLB, format!("Generated output is too \
+        small ({} bytes) to contain required .glb headers (20 bytes)",
+        glb.len()))
+    }
+    
+    // Can .unwrap() because .glb size was just checked
+    let magic = String::from_utf8_lossy(glb[0..4].try_into().unwrap());
+    let version     = u32::from_le_bytes(glb[ 4.. 8].try_into().unwrap());
+    let length      = u32::from_le_bytes(glb[ 8..12].try_into().unwrap());
+    
+    let json_length = u32::from_le_bytes(glb[12..16].try_into().unwrap());
+    let json_type = String::from_utf8_lossy(glb[16..20].try_into().unwrap());
+    
+    if magic != "glTF" {
+      fail(emg::ErrorCode::OutputNotGLB, format!("Generated output does not \
+        begin with magic bytes `glTF` required in .glb files (has `{}` \
+        instead)", magic))
+    }
+    
+    if version != 2 {
+      fail(emg::ErrorCode::NotImplemented, format!("Generated output gives a \
+        .glb container version of {}, but this tool only supports version 2",
+        version))
+    }
+    
+    if length != glb.len() as u32 {
+      fail(emg::ErrorCode::OutputNotGLB, format!("Header in generated output \
+        gives a length of {} bytes, but output is {} bytes", length, glb.len()))
+    }
+    
+    if length % 4 > 0 {
+      fail(emg::ErrorCode::OutputNotGLB, format!("Generated output is {} \
+        bytes, but .glb files must be multiples of 4 bytes", length))
+    }
+    
+    if json_type != "JSON" {
+      fail(emg::ErrorCode::OutputNotGLB, format!("First chunk in generated \
+        output must be a JSON chunk, but is labeled `{}`", json_type))
+    }
+    
+    if json_length > length - 20 {
+      fail(emg::ErrorCode::OutputNotGLB, format!("JSON chunk header in \
+        generated output gives a length of {} bytes, but output is only long \
+        enough for up to {} bytes of JSON", json_length, length - 20))
+    }
+    
+    if json_length % 4 > 0 {
+      fail(emg::ErrorCode::OutputNotGLB, format!("JSON chunk in generated \
+        output is {} bytes, but all chunks in .glb files must be multiples of \
+        4 bytes", json_length))
+    }
+    
+    if 0 < length - 20 - json_length && length - 20 - json_length < 8 {
+      fail(emg::ErrorCode::OutputNotGLB, format!("Remaining space after JSON \
+        chunk in generated output is too small for a valid .glb chunk ({} \
+        bytes remaining, but a chunk header is 8 bytes)", length - 20 -
+        json_length))
+    }
+    
+    let second_chunk_present = length > 20 + json_length + 8;
+    if !second_chunk_present {
+      return GLBMetadata {
+        json: ChunkMetadata { start: 20, length: json_length },
+        bin: None,
+      };
+    }
+    
+    // Can .unwrap() because .glb size was just checked
+    let bin_chunk_start = 20 + json_length;
+    let bin_data_start  = 20 + json_length + 8;
+    let bin_length = u32::from_le_bytes(
+      glb[(bin_chunk_start    ) as usize..(bin_chunk_start + 4) as usize]
+      .try_into().unwrap());
+    let bin_type = String::from_utf8_lossy(
+      glb[(bin_chunk_start + 4) as usize..(bin_chunk_start + 8) as usize]
+      .try_into().unwrap());
+    
+    if bin_type != "BIN\0" {
+      fail(emg::ErrorCode::OutputNotGLB, format!("Second chunk in generated \
+        output must be a BIN chunk, but is labeled `{}`", bin_type))
+    }
+    
+    if bin_data_start + bin_length > length {
+      fail(emg::ErrorCode::OutputNotGLB, format!("BIN chunk header in \
+        generated output gives a length of {} bytes, but output is only long \
+        enough for up to {} bytes of BIN", bin_length, length - bin_data_start))
+    }
+    
+    if bin_length % 4 > 0 {
+      fail(emg::ErrorCode::OutputNotGLB, format!("BIN chunk in generated \
+        output is {} bytes, but all chunks in .glb files must be multiples of \
+        4 bytes", bin_length))
+    }
+    
+    if bin_data_start + bin_length < length {
+      fail(emg::ErrorCode::NotImplemented, format!("Generated output contains \
+        additional space ({} bytes) after the JSON and BIN chunks, but this \
+        tool does not support any other chunk types", length - bin_data_start -
+        bin_length))
+    }
+    
+    GLBMetadata {
+      json: ChunkMetadata { start: 20, length: json_length },
+      bin: Some(ChunkMetadata { start: bin_data_start, length: bin_length }),
+    }
+  }
+}
+
 fn gen(args: ArgsForGen) {
   let emg_module = EMGModule::from_file(args.wasm);
   let mut store = emg_module.store;
@@ -306,26 +429,11 @@ fn gen(args: ArgsForGen) {
   let size_plain_int = size[0].i32().unwrap() as usize;
   let memory_of_interest = &(memory.data(&store))[pointer_plain_int..pointer_plain_int + size_plain_int];
   
-  // Can't figure out how to get u32::from_le_bytes() to work in the middle of a
-  // slice
-  let json_start = 20;
-  let json_length: usize =
-    (memory_of_interest[json_start - 8] as usize)*0x1 +
-    (memory_of_interest[json_start - 7] as usize)*0x100 +
-    (memory_of_interest[json_start - 6] as usize)*0x10000 +
-    (memory_of_interest[json_start - 5] as usize)*0x1000000
-  ;
+  let glb_metadata = GLBMetadata::from_glb(memory_of_interest);
   
-  let bin_start = json_start + json_length;
-  let bin_length: usize =
-    (memory_of_interest[bin_start - 8] as usize)*0x1 +
-    (memory_of_interest[bin_start - 7] as usize)*0x100 +
-    (memory_of_interest[bin_start - 6] as usize)*0x10000 +
-    (memory_of_interest[bin_start - 5] as usize)*0x1000000
-  ;
-  
-  let parsed: serde_json::Value = match serde_json::de::from_slice(
-    &memory_of_interest[json_start..json_start + json_length]) {
+  let mut parsed: serde_json::Value = match serde_json::de::from_slice(
+    &memory_of_interest[glb_metadata.json.start as usize..
+    (glb_metadata.json.start + glb_metadata.json.length) as usize]) {
     Ok(json) => json,
     Err(e) => fail(emg::ErrorCode::OutputNotGLB,
       format!("model generated with invalid JSON: {:?}", e)),
@@ -336,7 +444,43 @@ fn gen(args: ArgsForGen) {
     Format::Pretty => {
       println!("{}", serde_json::to_string_pretty(&parsed).unwrap());
     },
-    Format::GLTF => println!("{}", serde_json::to_string(&parsed).unwrap()),
+    Format::GLTF => {
+      match glb_metadata.bin {
+        None => {},
+        Some(bin_metadata) => {
+          let buffers = match parsed.get_mut("buffers") {
+            Some(v) => v,
+            None => fail(emg::ErrorCode::OutputNotGLB, "No `buffers` field \
+              present in generated output"),
+          };
+          
+          let buffer_0 = match buffers.get_mut(0) {
+            Some(v) => v,
+            None => fail(emg::ErrorCode::OutputNotGLB, "`buffers` field in \
+              generated output has no entries"),
+          };
+          
+          let buffer_0_as_object = match buffer_0.as_object_mut() {
+            Some(v) => v,
+            None => fail(emg::ErrorCode::OutputNotGLB, "`buffer[0]` field in \
+              generated output is not an object"),
+          };
+          
+          let mut base64_buffer = String::from("data:application/octet-stream;\
+            base64,");
+          
+          base64::engine::general_purpose::STANDARD.encode_string(
+            &memory_of_interest[bin_metadata.start as usize..
+            (bin_metadata.start + bin_metadata.length) as usize],
+            &mut base64_buffer);
+          
+          buffer_0_as_object.insert(String::from("uri"),
+            serde_json::Value::String(base64_buffer));
+        },
+      }
+      
+      println!("{}", serde_json::to_string(&parsed).unwrap());
+    },
     Format::GLB => std::io::stdout().write_all(&memory_of_interest).unwrap(),
   }
 }

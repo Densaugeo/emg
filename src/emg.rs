@@ -163,6 +163,20 @@ impl GLTF {
       glb_bin: Vec::new(),
     }
   }
+  
+  pub fn append_buffer_u16_scalar(&mut self, buffer: Vec<u16>) {
+    for value in buffer {
+      self.glb_bin.extend_from_slice(&value.to_le_bytes());
+    }
+  }
+  
+  pub fn append_buffer_f32_vec3(&mut self, buffer: Vec<[f32; 3]>) {
+    for vector in buffer {
+      for value in vector {
+        self.glb_bin.extend_from_slice(&value.to_le_bytes());
+      }
+    }
+  }
 }
 
 #[derive(Clone, serde::Serialize)]
