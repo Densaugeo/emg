@@ -193,7 +193,7 @@ impl EMGModule {
 
 struct ChunkMetadata {
   start: u32,
-  length: u32,
+  end: u32,
 }
 
 struct GLBMetadata {
@@ -203,112 +203,92 @@ struct GLBMetadata {
 
 impl GLBMetadata {
   fn from_glb(glb: &[u8]) -> Self {
-    if glb.len() < 24 {
+    if glb.len() < 12 {
       fail(emg::ErrorCode::OutputNotGLB, format!("Generated output is too \
-        small ({} bytes) to contain required .glb headers (20 bytes)",
+        small ({} bytes) to contain required .glb header (12 bytes)",
         glb.len()))
     }
     
     // Can .unwrap() because .glb size was just checked
     let magic = String::from_utf8_lossy(glb[0..4].try_into().unwrap());
-    let version     = u32::from_le_bytes(glb[ 4.. 8].try_into().unwrap());
-    let length      = u32::from_le_bytes(glb[ 8..12].try_into().unwrap());
-    
-    let json_length = u32::from_le_bytes(glb[12..16].try_into().unwrap());
-    let json_type = String::from_utf8_lossy(glb[16..20].try_into().unwrap());
+    let version = u32::from_le_bytes(glb[ 4.. 8].try_into().unwrap());
+    let length  = u32::from_le_bytes(glb[ 8..12].try_into().unwrap());
     
     if magic != "glTF" {
       fail(emg::ErrorCode::OutputNotGLB, format!("Generated output does not \
         begin with magic bytes `glTF` required in .glb files (has `{}` \
-        instead)", magic))
+        instead)", magic));
     }
     
     if version != 2 {
       fail(emg::ErrorCode::NotImplemented, format!("Generated output gives a \
         .glb container version of {}, but this tool only supports version 2",
-        version))
+        version));
     }
     
     if length != glb.len() as u32 {
       fail(emg::ErrorCode::OutputNotGLB, format!("Header in generated output \
-        gives a length of {} bytes, but output is {} bytes", length, glb.len()))
+        gives a length of {} bytes, but output is {} bytes", length,
+        glb.len()));
     }
     
-    if length % 4 > 0 {
-      fail(emg::ErrorCode::OutputNotGLB, format!("Generated output is {} \
-        bytes, but .glb files must be multiples of 4 bytes", length))
+    let json_length = Self::validate_chunk(glb[12..].try_into().unwrap(),
+      String::from("JSON"));
+    
+    let json_metadata = ChunkMetadata { start: 20, end: 12 + json_length };
+    
+    if length == json_metadata.end {
+      return GLBMetadata { json: json_metadata, bin: None };
     }
     
-    if json_type != "JSON" {
-      fail(emg::ErrorCode::OutputNotGLB, format!("First chunk in generated \
-        output must be a JSON chunk, but is labeled `{}`", json_type))
+    let bin_length = Self::validate_chunk(
+      glb[json_metadata.end as usize..].try_into().unwrap(),
+      String::from("BIN\0"));
+    
+    let bin_metadata = ChunkMetadata { start: json_metadata.end + 8, end:
+      json_metadata.end + bin_length };
+    
+    if bin_metadata.end < length {
+      fail(emg::ErrorCode::NotImplemented, format!("Generated output contains \
+        additional space ({} bytes) after the JSON and BIN chunks, but this \
+        tool does not support any other chunk types", length -
+        bin_metadata.end));
     }
     
-    if json_length > length - 20 {
-      fail(emg::ErrorCode::OutputNotGLB, format!("JSON chunk header in \
-        generated output gives a length of {} bytes, but output is only long \
-        enough for up to {} bytes of JSON", json_length, length - 20))
-    }
-    
-    if json_length % 4 > 0 {
-      fail(emg::ErrorCode::OutputNotGLB, format!("JSON chunk in generated \
-        output is {} bytes, but all chunks in .glb files must be multiples of \
-        4 bytes", json_length))
-    }
-    
-    if 0 < length - 20 - json_length && length - 20 - json_length < 8 {
-      fail(emg::ErrorCode::OutputNotGLB, format!("Remaining space after JSON \
-        chunk in generated output is too small for a valid .glb chunk ({} \
-        bytes remaining, but a chunk header is 8 bytes)", length - 20 -
-        json_length))
-    }
-    
-    let second_chunk_present = length > 20 + json_length + 8;
-    if !second_chunk_present {
-      return GLBMetadata {
-        json: ChunkMetadata { start: 20, length: json_length },
-        bin: None,
-      };
+    GLBMetadata { json: json_metadata, bin: Some(bin_metadata) }
+  }
+  
+  /// Returns size of chunk if valid, otherwise exits
+  fn validate_chunk(chunk: &[u8], expected_type: String) -> u32 {
+    if chunk.len() < 8 {
+      fail(emg::ErrorCode::OutputNotGLB, format!("Genrated out does not have \
+        enough space remaining for `{}` header ({} bytes remain but .glb chunk \
+        headers are 8 bytes)", expected_type, chunk.len()));
     }
     
     // Can .unwrap() because .glb size was just checked
-    let bin_chunk_start = 20 + json_length;
-    let bin_data_start  = 20 + json_length + 8;
-    let bin_length = u32::from_le_bytes(
-      glb[(bin_chunk_start    ) as usize..(bin_chunk_start + 4) as usize]
-      .try_into().unwrap());
-    let bin_type = String::from_utf8_lossy(
-      glb[(bin_chunk_start + 4) as usize..(bin_chunk_start + 8) as usize]
-      .try_into().unwrap());
+    let data_length = u32::from_le_bytes(chunk[0..4].try_into().unwrap());
+    let chunk_type = String::from_utf8_lossy(chunk[4..8].try_into().unwrap());
     
-    if bin_type != "BIN\0" {
-      fail(emg::ErrorCode::OutputNotGLB, format!("Second chunk in generated \
-        output must be a BIN chunk, but is labeled `{}`", bin_type))
+    if chunk_type != expected_type {
+      fail(emg::ErrorCode::OutputNotGLB, format!("Found `{}` chunk in \
+        generated output where `{}` chunk was expected", chunk_type,
+        expected_type));
     }
     
-    if bin_data_start + bin_length > length {
-      fail(emg::ErrorCode::OutputNotGLB, format!("BIN chunk header in \
+    if (chunk.len() as u32) < (8 + data_length) {
+      fail(emg::ErrorCode::OutputNotGLB, format!("`{}` chunk header in \
         generated output gives a length of {} bytes, but output is only long \
-        enough for up to {} bytes of BIN", bin_length, length - bin_data_start))
+        enough for up to {} bytes", chunk_type, data_length, chunk.len() - 8));
     }
     
-    if bin_length % 4 > 0 {
-      fail(emg::ErrorCode::OutputNotGLB, format!("BIN chunk in generated \
+    if data_length % 4 > 0 {
+      fail(emg::ErrorCode::OutputNotGLB, format!("`{}` chunk in generated \
         output is {} bytes, but all chunks in .glb files must be multiples of \
-        4 bytes", bin_length))
+        4 bytes", chunk_type, data_length + 8));
     }
     
-    if bin_data_start + bin_length < length {
-      fail(emg::ErrorCode::NotImplemented, format!("Generated output contains \
-        additional space ({} bytes) after the JSON and BIN chunks, but this \
-        tool does not support any other chunk types", length - bin_data_start -
-        bin_length))
-    }
-    
-    GLBMetadata {
-      json: ChunkMetadata { start: 20, length: json_length },
-      bin: Some(ChunkMetadata { start: bin_data_start, length: bin_length }),
-    }
+    data_length + 8
   }
 }
 
@@ -433,7 +413,7 @@ fn gen(args: ArgsForGen) {
   
   let mut parsed: serde_json::Value = match serde_json::de::from_slice(
     &memory_of_interest[glb_metadata.json.start as usize..
-    (glb_metadata.json.start + glb_metadata.json.length) as usize]) {
+    glb_metadata.json.end as usize]) {
     Ok(json) => json,
     Err(e) => fail(emg::ErrorCode::OutputNotGLB,
       format!("model generated with invalid JSON: {:?}", e)),
@@ -471,7 +451,7 @@ fn gen(args: ArgsForGen) {
           
           base64::engine::general_purpose::STANDARD.encode_string(
             &memory_of_interest[bin_metadata.start as usize..
-            (bin_metadata.start + bin_metadata.length) as usize],
+            bin_metadata.end as usize],
             &mut base64_buffer);
           
           buffer_0_as_object.insert(String::from("uri"),
