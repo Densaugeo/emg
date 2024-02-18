@@ -148,6 +148,69 @@ pub struct GLTF {
   pub extras: ??*/
 }
 
+pub trait GLTFBufferElement {
+  fn get_type() -> Type;
+  fn get_component_type() -> ComponentType;
+}
+
+macro_rules! gltf_buffer_element {
+  ($type_:ty, $gltf_type:expr, $gltf_component_type:expr) => {
+    impl GLTFBufferElement for $type_ {
+      fn get_type() -> Type { $gltf_type }
+      fn get_component_type() -> ComponentType { $gltf_component_type }
+    }
+  };
+}
+
+gltf_buffer_element!( u8, Type::SCALAR, ComponentType::UnsignedByte );
+gltf_buffer_element!( i8, Type::SCALAR, ComponentType::Byte         );
+gltf_buffer_element!(u16, Type::SCALAR, ComponentType::UnsignedShort);
+gltf_buffer_element!(i16, Type::SCALAR, ComponentType::Short        );
+gltf_buffer_element!(u32, Type::SCALAR, ComponentType::UnsignedInt  );
+gltf_buffer_element!(f32, Type::SCALAR, ComponentType::Float        );
+
+gltf_buffer_element!([ u8; 2], Type::VEC2, ComponentType::UnsignedByte );
+gltf_buffer_element!([ i8; 2], Type::VEC2, ComponentType::Byte         );
+gltf_buffer_element!([u16; 2], Type::VEC2, ComponentType::UnsignedShort);
+gltf_buffer_element!([i16; 2], Type::VEC2, ComponentType::Short        );
+gltf_buffer_element!([u32; 2], Type::VEC2, ComponentType::UnsignedInt  );
+gltf_buffer_element!([f32; 2], Type::VEC2, ComponentType::Float        );
+
+gltf_buffer_element!([ u8; 3], Type::VEC3, ComponentType::UnsignedByte );
+gltf_buffer_element!([ i8; 3], Type::VEC3, ComponentType::Byte         );
+gltf_buffer_element!([u16; 3], Type::VEC3, ComponentType::UnsignedShort);
+gltf_buffer_element!([i16; 3], Type::VEC3, ComponentType::Short        );
+gltf_buffer_element!([u32; 3], Type::VEC3, ComponentType::UnsignedInt  );
+gltf_buffer_element!([f32; 3], Type::VEC3, ComponentType::Float        );
+
+gltf_buffer_element!([ u8; 4], Type::VEC4, ComponentType::UnsignedByte );
+gltf_buffer_element!([ i8; 4], Type::VEC4, ComponentType::Byte         );
+gltf_buffer_element!([u16; 4], Type::VEC4, ComponentType::UnsignedShort);
+gltf_buffer_element!([i16; 4], Type::VEC4, ComponentType::Short        );
+gltf_buffer_element!([u32; 4], Type::VEC4, ComponentType::UnsignedInt  );
+gltf_buffer_element!([f32; 4], Type::VEC4, ComponentType::Float        );
+
+gltf_buffer_element!([[ u8; 2]; 2], Type::MAT2, ComponentType::UnsignedByte );
+gltf_buffer_element!([[ i8; 2]; 2], Type::MAT2, ComponentType::Byte         );
+gltf_buffer_element!([[u16; 2]; 2], Type::MAT2, ComponentType::UnsignedShort);
+gltf_buffer_element!([[i16; 2]; 2], Type::MAT2, ComponentType::Short        );
+gltf_buffer_element!([[u32; 2]; 2], Type::MAT2, ComponentType::UnsignedInt  );
+gltf_buffer_element!([[f32; 2]; 2], Type::MAT2, ComponentType::Float        );
+
+gltf_buffer_element!([[ u8; 3]; 3], Type::MAT3, ComponentType::UnsignedByte );
+gltf_buffer_element!([[ i8; 3]; 3], Type::MAT3, ComponentType::Byte         );
+gltf_buffer_element!([[u16; 3]; 3], Type::MAT3, ComponentType::UnsignedShort);
+gltf_buffer_element!([[i16; 3]; 3], Type::MAT3, ComponentType::Short        );
+gltf_buffer_element!([[u32; 3]; 3], Type::MAT3, ComponentType::UnsignedInt  );
+gltf_buffer_element!([[f32; 3]; 3], Type::MAT3, ComponentType::Float        );
+
+gltf_buffer_element!([[ u8; 4]; 4], Type::MAT4, ComponentType::UnsignedByte );
+gltf_buffer_element!([[ i8; 4]; 4], Type::MAT4, ComponentType::Byte         );
+gltf_buffer_element!([[u16; 4]; 4], Type::MAT4, ComponentType::UnsignedShort);
+gltf_buffer_element!([[i16; 4]; 4], Type::MAT4, ComponentType::Short        );
+gltf_buffer_element!([[u32; 4]; 4], Type::MAT4, ComponentType::UnsignedInt  );
+gltf_buffer_element!([[f32; 4]; 4], Type::MAT4, ComponentType::Float        );
+
 impl GLTF {
   pub fn new() -> Self {
     Self {
@@ -164,19 +227,27 @@ impl GLTF {
     }
   }
   
-  pub fn append_buffer_u16_scalar(&mut self, buffer: Vec<u16>) {
+  pub fn append_to_glb_bin<T: GLTFBufferElement>(&mut self, buffer: Vec<T>) {
     for value in buffer {
-      self.glb_bin.extend_from_slice(&value.to_le_bytes());
+      let sliced = unsafe { any_as_u8_slice(&value) };
+      self.glb_bin.extend_from_slice(sliced);
     }
   }
-  
-  pub fn append_buffer_f32_vec3(&mut self, buffer: Vec<[f32; 3]>) {
-    for vector in buffer {
-      for value in vector {
-        self.glb_bin.extend_from_slice(&value.to_le_bytes());
-      }
-    }
-  }
+}
+
+// WARNING: Do not edit!
+//
+// Found this function here:
+// https://stackoverflow.com/questions/28127165/how-to-convert-struct-to-u8
+//
+// Getting something into raw bytes in Rust is absurdly overcomplicated. Code
+// that does this is densely packed with subtle dangers, hidden complications,
+// and unpleasant surprises. Do not attempt to edit it.
+unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
+  ::core::slice::from_raw_parts(
+    (p as *const T) as *const u8,
+                                ::core::mem::size_of::<T>(),
+  )
 }
 
 #[derive(Clone, serde::Serialize)]

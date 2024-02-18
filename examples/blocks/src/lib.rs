@@ -128,7 +128,7 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
     [ 1.0, -1.0,  3.8],
     [ 1.0, -1.0,  4.4],
   ];
-  gltf.append_buffer_f32_vec3(build_red_vertices);
+  gltf.append_to_glb_bin(build_red_vertices);
   
   let build_red_indices: Vec<u16> = vec![
     // Top
@@ -155,7 +155,7 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
     0, 4, 2,
     2, 4, 6,
   ];
-  gltf.append_buffer_u16_scalar(build_red_indices);
+  gltf.append_to_glb_bin(build_red_indices);
   
   let build_black_vertices: Vec<[f32; 3]> = vec![
     [-0.5, -0.5,  4.4],
@@ -170,7 +170,7 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
     [ 0.5, -1.0,  4.4],
     [ 0.5, -1.0,  5.0],
   ];
-  gltf.append_buffer_f32_vec3(build_black_vertices);
+  gltf.append_to_glb_bin(build_black_vertices);
   
   let build_black_indices: Vec<u16> = vec![
     // Top
@@ -193,7 +193,7 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
     2, 6, 3,
     3, 6, 7,
   ];
-  gltf.append_buffer_u16_scalar(build_black_indices);
-  
+  gltf.append_to_glb_bin(build_black_indices);
+ 
   Ok(gltf)
 }
