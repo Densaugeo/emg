@@ -51,66 +51,6 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
   mesh.primitives.push(black_submesh);
   gltf.meshes.push(mesh);
   
-  let mut red_pos_accessor = emg::Accessor::new();
-  red_pos_accessor.buffer_view = Some(0);
-  red_pos_accessor.type_ = emg::Type::VEC3;
-  red_pos_accessor.component_type = emg::ComponentType::Float;
-  red_pos_accessor.count = 8;
-  red_pos_accessor.min.extend_from_slice(&[-1.0, -1.0,  3.8]);
-  red_pos_accessor.max.extend_from_slice(&[ 1.0, -0.5,  4.4]);
-  gltf.accessors.push(red_pos_accessor);
-  
-  let mut red_pos_buffer_view = emg::BufferView::new();
-  red_pos_buffer_view.buffer = 0;
-  red_pos_buffer_view.byte_length = 96;
-  red_pos_buffer_view.byte_offset = 0;
-  red_pos_buffer_view.target = Some(emg::Target::ArrayBuffer);
-  gltf.buffer_views.push(red_pos_buffer_view);
-  
-  let mut red_vert_accessor = emg::Accessor::new();
-  red_vert_accessor.buffer_view = Some(1);
-  red_vert_accessor.type_ = emg::Type::SCALAR;
-  red_vert_accessor.component_type = emg::ComponentType::UnsignedShort;
-  red_vert_accessor.count = 36;
-  gltf.accessors.push(red_vert_accessor);
-  
-  let mut red_vert_buffer_view = emg::BufferView::new();
-  red_vert_buffer_view.buffer = 0;
-  red_vert_buffer_view.byte_length = 72;
-  red_vert_buffer_view.byte_offset = 96;
-  red_vert_buffer_view.target = Some(emg::Target::ElementArrayBuffer);
-  gltf.buffer_views.push(red_vert_buffer_view);
-  
-  let mut black_pos_accessor = emg::Accessor::new();
-  black_pos_accessor.buffer_view = Some(2);
-  black_pos_accessor.type_ = emg::Type::VEC3;
-  black_pos_accessor.component_type = emg::ComponentType::Float;
-  black_pos_accessor.count = 8;
-  black_pos_accessor.min.extend_from_slice(&[-0.5, -1.0, 4.4]);
-  black_pos_accessor.max.extend_from_slice(&[ 0.5, -0.5, 5.0]);
-  gltf.accessors.push(black_pos_accessor);
-  
-  let mut black_pos_buffer_view = emg::BufferView::new();
-  black_pos_buffer_view.buffer = 0;
-  black_pos_buffer_view.byte_length = 96;
-  black_pos_buffer_view.byte_offset = 168;
-  black_pos_buffer_view.target = Some(emg::Target::ArrayBuffer);
-  gltf.buffer_views.push(black_pos_buffer_view);
-  
-  let mut black_vert_accessor = emg::Accessor::new();
-  black_vert_accessor.buffer_view = Some(3);
-  black_vert_accessor.type_ = emg::Type::SCALAR;
-  black_vert_accessor.component_type = emg::ComponentType::UnsignedShort;
-  black_vert_accessor.count = 30;
-  gltf.accessors.push(black_vert_accessor);
-  
-  let mut black_vert_buffer_view = emg::BufferView::new();
-  black_vert_buffer_view.buffer = 0;
-  black_vert_buffer_view.byte_length = 60;
-  black_vert_buffer_view.byte_offset = 264;
-  black_vert_buffer_view.target = Some(emg::Target::ElementArrayBuffer);
-  gltf.buffer_views.push(black_vert_buffer_view);
-  
   let mut buffer = emg::Buffer::new();
   buffer.byte_length = 324;
   gltf.buffers.push(buffer);
@@ -128,7 +68,14 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
     [ 1.0, -1.0,  3.8],
     [ 1.0, -1.0,  4.4],
   ];
-  gltf.append_to_glb_bin(build_red_vertices);
+  let (accessor_index, buffer_view_index) = gltf.append_to_glb_bin(
+    build_red_vertices);
+  gltf.accessors[accessor_index as usize].min.extend_from_slice(
+    &[-1.0, -1.0, 3.8]);
+  gltf.accessors[accessor_index as usize].max.extend_from_slice(
+    &[ 1.0, -0.5, 4.4]);
+  gltf.buffer_views[buffer_view_index as usize].target = Some(
+    emg::Target::ArrayBuffer);
   
   let build_red_indices: Vec<u16> = vec![
     // Top
@@ -155,7 +102,10 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
     0, 4, 2,
     2, 4, 6,
   ];
-  gltf.append_to_glb_bin(build_red_indices);
+  let (accessor_index, buffer_view_index) = gltf.append_to_glb_bin(
+    build_red_indices);
+  gltf.buffer_views[buffer_view_index as usize].target = Some(
+    emg::Target::ElementArrayBuffer);
   
   let build_black_vertices: Vec<[f32; 3]> = vec![
     [-0.5, -0.5,  4.4],
@@ -170,7 +120,14 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
     [ 0.5, -1.0,  4.4],
     [ 0.5, -1.0,  5.0],
   ];
-  gltf.append_to_glb_bin(build_black_vertices);
+  let (accessor_index, buffer_view_index) = gltf.append_to_glb_bin(
+    build_black_vertices);
+  gltf.accessors[accessor_index as usize].min.extend_from_slice(
+    &[-0.5, -1.0, 4.4]);
+  gltf.accessors[accessor_index as usize].max.extend_from_slice(
+    &[ 0.5, -0.5, 5.0]);
+  gltf.buffer_views[buffer_view_index as usize].target = Some(
+    emg::Target::ArrayBuffer);
   
   let build_black_indices: Vec<u16> = vec![
     // Top
@@ -193,7 +150,10 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
     2, 6, 3,
     3, 6, 7,
   ];
-  gltf.append_to_glb_bin(build_black_indices);
- 
+  let (accessor_index, buffer_view_index) = gltf.append_to_glb_bin(
+    build_black_indices);
+  gltf.buffer_views[buffer_view_index as usize].target = Some(
+    emg::Target::ElementArrayBuffer);
+  
   Ok(gltf)
 }

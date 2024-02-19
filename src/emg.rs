@@ -227,11 +227,29 @@ impl GLTF {
     }
   }
   
-  pub fn append_to_glb_bin<T: GLTFBufferElement>(&mut self, buffer: Vec<T>) {
+  /// Returns indices for automatically created Accessor and BufferView
+  pub fn append_to_glb_bin<T: GLTFBufferElement>(&mut self, buffer: Vec<T>
+  ) -> (u32, u32) {
+    let mut accessor = Accessor::new();
+    accessor.buffer_view = Some(self.buffer_views.len() as u32);
+    accessor.type_ = T::get_type();
+    accessor.component_type = T::get_component_type();
+    accessor.count = buffer.len() as u32;
+    self.accessors.push(accessor);
+    
+    let mut buffer_view = BufferView::new();
+    buffer_view.buffer = 0;
+    buffer_view.byte_length = (buffer.len() as u32)*(
+      ::core::mem::size_of::<T>() as u32);
+    buffer_view.byte_offset = self.glb_bin.len() as u32;
+    self.buffer_views.push(buffer_view);
+    
     for value in buffer {
       let sliced = unsafe { any_as_u8_slice(&value) };
       self.glb_bin.extend_from_slice(sliced);
     }
+    
+    (self.accessors.len() as u32 - 1, self.buffer_views.len() as u32 - 1)
   }
 }
 
@@ -246,7 +264,7 @@ impl GLTF {
 unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
   ::core::slice::from_raw_parts(
     (p as *const T) as *const u8,
-                                ::core::mem::size_of::<T>(),
+    ::core::mem::size_of::<T>(),
   )
 }
 
