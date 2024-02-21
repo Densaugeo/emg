@@ -3,6 +3,7 @@ use std::sync::atomic::{Ordering, AtomicU32};
 
 pub mod prelude {
   pub use emg_macros::emg;
+  pub use crate::Geometry;
   pub use crate::GLTF;
   pub use crate::Scene;
   pub use crate::Node;
@@ -63,6 +64,197 @@ impl std::io::Write for DryRunWriter {
   
   fn flush(&mut self) -> Result<(), std::io::Error> {
     Ok(())
+  }
+}
+
+pub struct Geometry {
+  pub vertices: Vec<[f32; 3]>,
+  
+  // TODO Find a way to store this as Vec<[u32; 3]>, but convert back to
+  // Vec<u16> for GLTF encoding
+  pub triangles: Vec<u16>,
+}
+
+impl Geometry {
+  pub fn translate(&mut self, vector: &[f32; 3]) -> &mut Self {
+    for vertex in &mut self.vertices {
+      for i in 0..3 {
+        vertex[i] += vector[i];
+      }
+    }
+    
+    self
+  }
+  
+  pub fn scale(&mut self, vector: &[f32; 3]) -> &mut Self {
+    for vertex in &mut self.vertices {
+      for i in 0..3 {
+        vertex[i] *= vector[i];
+      }
+    }
+    
+    self
+  }
+  
+  // rotations / matrices
+  
+  // Merges
+  
+  // Vertex deduplication
+  
+  /// Returns a list of vertices within the bounding box defined by the given
+  /// points. Allows error of 1e-6
+  pub fn select_vertices(&self, bound_1: &[f32; 3], bound_2: &[f32; 3]
+  ) -> Vec<u16> {
+    let mut result = Vec::new();
+    
+    let mut lower_bound = [0.0; 3];
+    let mut upper_bound = [0.0; 3];
+    for i in 0..3 {
+      lower_bound[i] = bound_1[i].min(bound_2[i]) - 1e-6;
+      upper_bound[i] = bound_1[i].max(bound_2[i]) + 1e-6;
+    }
+    
+    for i in 0..self.vertices.len() {
+      if lower_bound[0] < self.vertices[i][0] &&
+         self.vertices[i][0] < upper_bound[0] &&
+         lower_bound[1] < self.vertices[i][1] &&
+         self.vertices[i][1] < upper_bound[1] &&
+         lower_bound[2] < self.vertices[i][2] &&
+         self.vertices[i][2] < upper_bound[2] {
+        result.push(i as u16);
+      }
+    }
+    
+    result
+  }
+  
+  /// Returns a list of triangles within the bounding box defined by the given
+  /// points. Allows error of 1e-6
+  pub fn select_triangles(&self, bound_1: &[f32; 3], bound_2: &[f32; 3]
+  ) -> Vec<u16> {
+    let mut result = Vec::new();
+    
+    let bounded_vertices = self.select_vertices(&bound_1, &bound_2);
+    
+    for i in (0..self.triangles.len()).step_by(3) {
+      if bounded_vertices.contains(&self.triangles[i + 0]) &&
+         bounded_vertices.contains(&self.triangles[i + 1]) &&
+         bounded_vertices.contains(&self.triangles[i + 2]) {
+        result.push((i/3) as u16);
+      }
+    }
+    
+    result
+  }
+  
+  pub fn delete_vertices(&mut self, vertices: &Vec<u16>) {
+    // Vertices must be processed in reverse order, because deletion of lower-
+    // index vertices can change the index of higher-index vertices
+    let mut vertices_cloned = vertices.clone();
+    vertices_cloned.sort_unstable();
+    vertices_cloned.reverse();
+    
+    for vertex in vertices_cloned {
+      // Swap remove to avoid having to shift vertices every time one is
+      // removed
+      self.vertices.swap_remove(vertex as usize);
+      let swapped_vertex = self.vertices.len() as u16;
+      
+      for i in (0..self.triangles.len()).step_by(3) {
+        // Delete triangle if it includes deleted vertex
+        if self.triangles[i + 0] == vertex ||
+           self.triangles[i + 1] == vertex ||
+           self.triangles[i + 2] == vertex {
+          // Do swap removes in reverse to preserve triangle winding
+          self.triangles.swap_remove(i + 2);
+          self.triangles.swap_remove(i + 1);
+          self.triangles.swap_remove(i + 0);
+        }
+        
+        // Update indices if swapped vertex is referenced
+        for j in 0..2 {
+          if self.triangles[i + j] == swapped_vertex {
+            self.triangles[i + j] = vertex
+          }
+        }
+      }
+    }
+  }
+  
+  pub fn delete_triangles(&mut self, triangles: &Vec<u16>) {
+    // Triangles must be processed in reverse order, because deletion of lower-
+    // index vertices can change the index of higher-index vertices
+    let mut triangles_cloned = triangles.clone();
+    triangles_cloned.sort_unstable();
+    triangles_cloned.reverse();
+    
+    for triangle in triangles_cloned {
+      // Do swap removes in reverse to preserve triangle winding
+      self.triangles.swap_remove(3*triangle as usize + 2);
+      self.triangles.swap_remove(3*triangle as usize + 1);
+      self.triangles.swap_remove(3*triangle as usize + 0);
+    }
+  }
+  
+  pub fn delete_stray_vertices(&mut self) {
+    // Vertices must be processed in reverse order, because deletion of lower-
+    // index vertices can change the index of higher-index vertices
+    for vertex in self.vertices.len()..0 {
+      if !self.triangles.contains(&(vertex as u16)) {
+        self.vertices.swap_remove(vertex);
+        let swapped_vertex = self.vertices.len() as u16;
+        
+        for i in 0..self.triangles.len() {
+          if self.triangles[i] == swapped_vertex {
+            self.triangles[i] = vertex as u16;
+          }
+        }
+      }
+    }
+  }
+  
+  pub fn cube() -> Self {
+    Geometry {
+      vertices: vec![
+        [-1.0,  1.0, -1.0],
+        [-1.0,  1.0,  1.0],
+        
+        [-1.0, -1.0, -1.0],
+        [-1.0, -1.0,  1.0],
+        
+        [ 1.0,  1.0, -1.0],
+        [ 1.0,  1.0,  1.0],
+        
+        [ 1.0, -1.0, -1.0],
+        [ 1.0, -1.0,  1.0],
+      ],
+      triangles: vec![
+        // Top
+        1, 3, 5,
+        3, 7, 5,
+        
+        // +X side
+        4, 5, 6,
+        5, 7, 6,
+        
+        // -X side
+        0, 2, 1,
+        1, 2, 3,
+        
+        // +Y side
+        0, 1, 4,
+        1, 5, 4,
+        
+        // -Y side
+        2, 6, 3,
+        3, 6, 7,
+        
+        // Bottom
+        0, 4, 2,
+        2, 4, 6,
+      ],
+    }
   }
 }
 
@@ -222,13 +414,15 @@ impl GLTF {
       meshes: Vec::new(),
       accessors: Vec::new(),
       buffer_views: Vec::new(),
-      buffers: Vec::new(),
+      buffers: vec!(Buffer::new()),
       glb_bin: Vec::new(),
     }
   }
   
   /// Returns indices for automatically created Accessor and BufferView
   pub fn append_to_glb_bin<T: GLTFBufferElement>(&mut self, buffer: Vec<T>) {
+    let bytes = (buffer.len() as u32)*(::core::mem::size_of::<T>() as u32);
+    
     let mut accessor = Accessor::new();
     accessor.buffer_view = Some(self.buffer_views.len() as u32);
     accessor.type_ = T::get_type();
@@ -238,10 +432,11 @@ impl GLTF {
     
     let mut buffer_view = BufferView::new();
     buffer_view.buffer = 0;
-    buffer_view.byte_length = (buffer.len() as u32)*(
-      ::core::mem::size_of::<T>() as u32);
+    buffer_view.byte_length = bytes;
     buffer_view.byte_offset = self.glb_bin.len() as u32;
     self.buffer_views.push(buffer_view);
+    
+    self.buffers[0].byte_length += bytes;
     
     for value in buffer {
       let sliced = unsafe { any_as_u8_slice(&value) };
