@@ -68,13 +68,10 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
     [ 1.0, -1.0,  3.8],
     [ 1.0, -1.0,  4.4],
   ];
-  let (accessor_index, buffer_view_index) = gltf.append_to_glb_bin(
-    build_red_vertices);
-  gltf.accessors[accessor_index as usize].min.extend_from_slice(
-    &[-1.0, -1.0, 3.8]);
-  gltf.accessors[accessor_index as usize].max.extend_from_slice(
-    &[ 1.0, -0.5, 4.4]);
-  gltf.buffer_views[buffer_view_index as usize].target = Some(
+  gltf.append_to_glb_bin(build_red_vertices);
+  gltf.accessors.last_mut().unwrap().min.extend_from_slice(&[-1.0, -1.0, 3.8]);
+  gltf.accessors.last_mut().unwrap().max.extend_from_slice(&[ 1.0, -0.5, 4.4]);
+  gltf.buffer_views.last_mut().unwrap().target = Some(
     emg::Target::ArrayBuffer);
   
   let build_red_indices: Vec<u16> = vec![
@@ -102,9 +99,8 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
     0, 4, 2,
     2, 4, 6,
   ];
-  let (accessor_index, buffer_view_index) = gltf.append_to_glb_bin(
-    build_red_indices);
-  gltf.buffer_views[buffer_view_index as usize].target = Some(
+  gltf.append_to_glb_bin(build_red_indices);
+  gltf.buffer_views.last_mut().unwrap().target = Some(
     emg::Target::ElementArrayBuffer);
   
   let build_black_vertices: Vec<[f32; 3]> = vec![
@@ -120,13 +116,10 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
     [ 0.5, -1.0,  4.4],
     [ 0.5, -1.0,  5.0],
   ];
-  let (accessor_index, buffer_view_index) = gltf.append_to_glb_bin(
-    build_black_vertices);
-  gltf.accessors[accessor_index as usize].min.extend_from_slice(
-    &[-0.5, -1.0, 4.4]);
-  gltf.accessors[accessor_index as usize].max.extend_from_slice(
-    &[ 0.5, -0.5, 5.0]);
-  gltf.buffer_views[buffer_view_index as usize].target = Some(
+  gltf.append_to_glb_bin(build_black_vertices);
+  gltf.accessors.last_mut().unwrap().min.extend_from_slice(&[-0.5, -1.0, 4.4]);
+  gltf.accessors.last_mut().unwrap().max.extend_from_slice(&[ 0.5, -0.5, 5.0]);
+  gltf.buffer_views.last_mut().unwrap().target = Some(
     emg::Target::ArrayBuffer);
   
   let build_black_indices: Vec<u16> = vec![
@@ -150,9 +143,8 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
     2, 6, 3,
     3, 6, 7,
   ];
-  let (accessor_index, buffer_view_index) = gltf.append_to_glb_bin(
-    build_black_indices);
-  gltf.buffer_views[buffer_view_index as usize].target = Some(
+  gltf.append_to_glb_bin(build_black_indices);
+  gltf.buffer_views.last_mut().unwrap().target = Some(
     emg::Target::ElementArrayBuffer);
   
   Ok(gltf)

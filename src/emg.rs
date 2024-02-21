@@ -228,8 +228,7 @@ impl GLTF {
   }
   
   /// Returns indices for automatically created Accessor and BufferView
-  pub fn append_to_glb_bin<T: GLTFBufferElement>(&mut self, buffer: Vec<T>
-  ) -> (u32, u32) {
+  pub fn append_to_glb_bin<T: GLTFBufferElement>(&mut self, buffer: Vec<T>) {
     let mut accessor = Accessor::new();
     accessor.buffer_view = Some(self.buffer_views.len() as u32);
     accessor.type_ = T::get_type();
@@ -248,8 +247,6 @@ impl GLTF {
       let sliced = unsafe { any_as_u8_slice(&value) };
       self.glb_bin.extend_from_slice(sliced);
     }
-    
-    (self.accessors.len() as u32 - 1, self.buffer_views.len() as u32 - 1)
   }
 }
 
