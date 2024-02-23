@@ -28,7 +28,7 @@ pub extern "C" fn model_size() -> i32 {
 
 // These error codes are returned from WebAssembly functions, so must use a
 // WebAssembly variable type
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 #[repr(i32)]
 pub enum ErrorCode {
   None = 0,
@@ -70,9 +70,7 @@ impl std::io::Write for DryRunWriter {
 pub struct Geometry {
   pub vertices: Vec<[f32; 3]>,
   
-  // TODO Find a way to store this as Vec<[u32; 3]>, but convert back to
-  // Vec<u16> for GLTF encoding
-  pub triangles: Vec<u16>,
+  pub triangles: Vec<[u16; 3]>,
 }
 
 impl Geometry {
@@ -137,11 +135,11 @@ impl Geometry {
     
     let bounded_vertices = self.select_vertices(&bound_1, &bound_2);
     
-    for i in (0..self.triangles.len()).step_by(3) {
-      if bounded_vertices.contains(&self.triangles[i + 0]) &&
-         bounded_vertices.contains(&self.triangles[i + 1]) &&
-         bounded_vertices.contains(&self.triangles[i + 2]) {
-        result.push((i/3) as u16);
+    for i in 0..self.triangles.len() {
+      if bounded_vertices.contains(&self.triangles[i][0]) &&
+         bounded_vertices.contains(&self.triangles[i][1]) &&
+         bounded_vertices.contains(&self.triangles[i][2]) {
+        result.push(i as u16);
       }
     }
     
@@ -161,23 +159,20 @@ impl Geometry {
       self.vertices.swap_remove(vertex as usize);
       let swapped_vertex = self.vertices.len() as u16;
       
-      for i in (0..self.triangles.len()).step_by(3) {
+      for i in 0..self.triangles.len() {
         // Delete triangle if it includes deleted vertex
-        if self.triangles[i + 0] == vertex ||
-           self.triangles[i + 1] == vertex ||
-           self.triangles[i + 2] == vertex {
-          // Do swap removes in reverse to preserve triangle winding
-          self.triangles.swap_remove(i + 2);
-          self.triangles.swap_remove(i + 1);
-          self.triangles.swap_remove(i + 0);
-        }
-        
-        // Update indices if swapped vertex is referenced
-        for j in 0..2 {
-          if self.triangles[i + j] == swapped_vertex {
-            self.triangles[i + j] = vertex
+        if self.triangles[i][0] == vertex ||
+          self.triangles[i][1] == vertex ||
+          self.triangles[i][2] == vertex {
+            self.triangles.swap_remove(i);
           }
-        }
+          
+          // Update indices if swapped vertex is referenced
+          for j in 0..2 {
+            if self.triangles[i][j] == swapped_vertex {
+              self.triangles[i][j] = vertex
+            }
+          }
       }
     }
   }
@@ -190,10 +185,7 @@ impl Geometry {
     triangles_cloned.reverse();
     
     for triangle in triangles_cloned {
-      // Do swap removes in reverse to preserve triangle winding
-      self.triangles.swap_remove(3*triangle as usize + 2);
-      self.triangles.swap_remove(3*triangle as usize + 1);
-      self.triangles.swap_remove(3*triangle as usize + 0);
+      self.triangles.swap_remove(triangle as usize);
     }
   }
   
@@ -201,13 +193,22 @@ impl Geometry {
     // Vertices must be processed in reverse order, because deletion of lower-
     // index vertices can change the index of higher-index vertices
     for vertex in self.vertices.len()..0 {
-      if !self.triangles.contains(&(vertex as u16)) {
+      let mut vertex_used = false;
+      for triangle in &self.triangles {
+        if triangle.contains(&(vertex as u16)) {
+          vertex_used = true;
+        }
+      }
+      
+      if vertex_used {
         self.vertices.swap_remove(vertex);
         let swapped_vertex = self.vertices.len() as u16;
         
         for i in 0..self.triangles.len() {
-          if self.triangles[i] == swapped_vertex {
-            self.triangles[i] = vertex as u16;
+          for j in 0..2 {
+            if self.triangles[i][j] == swapped_vertex {
+              self.triangles[i][j] = vertex as u16;
+            }
           }
         }
       }
@@ -215,7 +216,7 @@ impl Geometry {
   }
   
   pub fn cube() -> Self {
-    Geometry {
+    Self {
       vertices: vec![
         [-1.0,  1.0, -1.0],
         [-1.0,  1.0,  1.0],
@@ -231,28 +232,28 @@ impl Geometry {
       ],
       triangles: vec![
         // Top
-        1, 3, 5,
-        3, 7, 5,
+        [1, 3, 5],
+        [3, 7, 5],
         
         // +X side
-        4, 5, 6,
-        5, 7, 6,
+        [4, 5, 6],
+        [5, 7, 6],
         
         // -X side
-        0, 2, 1,
-        1, 2, 3,
+        [0, 2, 1],
+        [1, 2, 3],
         
         // +Y side
-        0, 1, 4,
-        1, 5, 4,
+        [0, 1, 4],
+        [1, 5, 4],
         
         // -Y side
-        2, 6, 3,
-        3, 6, 7,
+        [2, 6, 3],
+        [3, 6, 7],
         
         // Bottom
-        0, 4, 2,
-        2, 4, 6,
+        [0, 4, 2],
+        [2, 4, 6],
       ],
     }
   }
@@ -419,15 +420,15 @@ impl GLTF {
     }
   }
   
-  /// Returns indices for automatically created Accessor and BufferView
-  pub fn append_to_glb_bin<T: GLTFBufferElement>(&mut self, buffer: Vec<T>) {
+  pub fn append_to_glb_bin<T>(&mut self, buffer: Vec<T>,
+  type_: Type, component_type: ComponentType) {
     let bytes = (buffer.len() as u32)*(::core::mem::size_of::<T>() as u32);
     
     let mut accessor = Accessor::new();
     accessor.buffer_view = Some(self.buffer_views.len() as u32);
-    accessor.type_ = T::get_type();
-    accessor.component_type = T::get_component_type();
-    accessor.count = buffer.len() as u32;
+    accessor.type_ = type_;
+    accessor.component_type = component_type;
+    accessor.count = bytes/type_.component_count()/component_type.byte_count();
     self.accessors.push(accessor);
     
     let mut buffer_view = BufferView::new();
@@ -480,7 +481,7 @@ impl Scene {
   }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 #[derive(serde_tuple::Serialize_tuple)]
 pub struct Translation {
   pub x: f64,
@@ -493,7 +494,7 @@ impl Translation {
   pub fn is_default(&self) -> bool { *self == Self::new() }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 #[derive(serde_tuple::Serialize_tuple)]
 pub struct Rotation {
   pub x: f64,
@@ -507,7 +508,7 @@ impl Rotation {
   pub fn is_default(&self) -> bool { *self == Self::new() }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 #[derive(serde_tuple::Serialize_tuple)]
 pub struct Scale {
   pub x: f64,
@@ -567,14 +568,14 @@ impl Node {
   }
 }
 
-#[derive(Clone, PartialEq, serde::Serialize)]
+#[derive(Copy, Clone, PartialEq, serde::Serialize)]
 pub enum AlphaMode {
   OPAQUE,
   MASK,
   BLEND,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 #[derive(serde_tuple::Serialize_tuple)]
 pub struct Color4 {
   pub r: f64,
@@ -588,7 +589,7 @@ impl Color4 {
   pub fn is_default(&self) -> bool { *self == Self::new() }
 }
 
-#[derive(Clone, serde::Serialize)]
+#[derive(Copy, Clone, serde::Serialize)]
 pub struct PBRMetallicRoughness {
   #[serde(rename = "baseColorFactor")]
   #[serde(skip_serializing_if = "Color4::is_default")]
@@ -694,7 +695,7 @@ impl Material {
 
 // The fields here are in the spec in section 3.7 - Concepts / Geometry,
 // which took me a while to find
-#[derive(Clone, serde::Serialize)]
+#[derive(Copy, Clone, serde::Serialize)]
 pub struct Attributes {
   #[serde(rename = "COLOR_0")]
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -754,7 +755,7 @@ impl Attributes {
   }
 }
 
-#[derive(Clone, PartialEq, serde_repr::Serialize_repr)]
+#[derive(Copy, Clone, PartialEq, serde_repr::Serialize_repr)]
 #[repr(u8)]
 pub enum Mode {
   Points = 0,
@@ -770,7 +771,7 @@ fn is_default_mode(value: &Mode) -> bool {
   *value == Mode::Triangles
 }
 
-#[derive(Clone, serde::Serialize)]
+#[derive(Copy, Clone, serde::Serialize)]
 pub struct MeshPrimitive {
   pub attributes: Attributes,
   
@@ -828,7 +829,7 @@ impl Mesh {
   }
 }
 
-#[derive(Clone, PartialEq, serde_repr::Serialize_repr)]
+#[derive(Copy, Clone, PartialEq, serde_repr::Serialize_repr)]
 #[repr(u16)]
 pub enum ComponentType {
   Byte = 5120,
@@ -839,7 +840,20 @@ pub enum ComponentType {
   Float = 5126,
 }
 
-#[derive(Clone, serde::Serialize)]
+impl ComponentType {
+  pub fn byte_count(&self) -> u32 {
+    match self {
+      Self::Byte          => 1,
+      Self::UnsignedByte  => 1,
+      Self::Short         => 2,
+      Self::UnsignedShort => 2,
+      Self::UnsignedInt   => 4,
+      Self::Float         => 4,
+    }
+  }
+}
+
+#[derive(Copy, Clone, serde::Serialize)]
 pub enum Type {
   SCALAR,
   VEC2,
@@ -848,6 +862,20 @@ pub enum Type {
   MAT2,
   MAT3,
   MAT4,
+}
+
+impl Type {
+  pub fn component_count(&self) -> u32 {
+    match self {
+      Self::SCALAR =>  1,
+      Self::VEC2   =>  2,
+      Self::VEC3   =>  3,
+      Self::VEC4   =>  4,
+      Self::MAT2   =>  4,
+      Self::MAT3   =>  9,
+      Self::MAT4   => 16,
+    }
+  }
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -916,7 +944,7 @@ fn is_default_normalized(value: &bool) -> bool {
   *value == false
 }
 
-#[derive(Clone, PartialEq, serde_repr::Serialize_repr)]
+#[derive(Copy, Clone, PartialEq, serde_repr::Serialize_repr)]
 #[repr(u16)]
 pub enum Target {
   ArrayBuffer = 34962,
