@@ -1,6 +1,8 @@
 use std::sync::Mutex;
 use std::sync::atomic::{Ordering, AtomicU32};
 
+pub use nalgebra::Vector3 as V3;
+
 pub mod prelude {
   pub use emg_macros::emg;
   pub use crate::Geometry;
@@ -8,6 +10,8 @@ pub mod prelude {
   pub use crate::Scene;
   pub use crate::Node;
   pub use crate::ErrorCode;
+  
+  pub use nalgebra::Vector3 as V3;
 }
 
 pub static MUTEX_TEST: Mutex<Vec<u8>> = Mutex::new(Vec::new());
@@ -68,27 +72,23 @@ impl std::io::Write for DryRunWriter {
 }
 
 pub struct Geometry {
-  pub vertices: Vec<[f32; 3]>,
+  pub vertices: Vec<V3<f32>>,
   
   pub triangles: Vec<[u16; 3]>,
 }
 
 impl Geometry {
-  pub fn translate(&mut self, vector: &[f32; 3]) -> &mut Self {
+  pub fn translate(&mut self, vector: V3<f32>) -> &mut Self {
     for vertex in &mut self.vertices {
-      for i in 0..3 {
-        vertex[i] += vector[i];
-      }
+      *vertex += vector;
     }
     
     self
   }
   
-  pub fn scale(&mut self, vector: &[f32; 3]) -> &mut Self {
+  pub fn scale(&mut self, vector: V3<f32>) -> &mut Self {
     for vertex in &mut self.vertices {
-      for i in 0..3 {
-        vertex[i] *= vector[i];
-      }
+      vertex.component_mul_assign(&vector);
     }
     
     self
@@ -102,7 +102,7 @@ impl Geometry {
   
   /// Returns a list of vertices within the bounding box defined by the given
   /// points. Allows error of 1e-6
-  pub fn select_vertices(&self, bound_1: &[f32; 3], bound_2: &[f32; 3]
+  pub fn select_vertices(&self, bound_1: V3<f32>, bound_2: V3<f32>
   ) -> Vec<u16> {
     let mut result = Vec::new();
     
@@ -129,11 +129,11 @@ impl Geometry {
   
   /// Returns a list of triangles within the bounding box defined by the given
   /// points. Allows error of 1e-6
-  pub fn select_triangles(&self, bound_1: &[f32; 3], bound_2: &[f32; 3]
+  pub fn select_triangles(&self, bound_1: V3<f32>, bound_2: V3<f32>
   ) -> Vec<u16> {
     let mut result = Vec::new();
     
-    let bounded_vertices = self.select_vertices(&bound_1, &bound_2);
+    let bounded_vertices = self.select_vertices(bound_1, bound_2);
     
     for i in 0..self.triangles.len() {
       if bounded_vertices.contains(&self.triangles[i][0]) &&
@@ -146,6 +146,29 @@ impl Geometry {
     result
   }
   
+  /// Automatically deletes affected triangles
+  pub fn delete_vertex(&mut self, vertex: u16) {
+    // Swap remove to avoid having to shift vertices
+    self.vertices.swap_remove(vertex as usize);
+    let swapped_vertex = self.vertices.len() as u16;
+    
+    for i in 0..self.triangles.len() {
+      // Delete triangle if it includes deleted vertex
+      if self.triangles[i].contains(&vertex) {
+        self.triangles.swap_remove(i);
+        continue;
+      }
+      
+      // Update indices if swapped vertex is referenced
+      for j in 0..2 {
+        if self.triangles[i][j] == swapped_vertex {
+          self.triangles[i][j] = vertex
+        }
+      }
+    }
+  }
+  
+  /// Automatically deletes affected triangles
   pub fn delete_vertices(&mut self, vertices: &Vec<u16>) {
     // Vertices must be processed in reverse order, because deletion of lower-
     // index vertices can change the index of higher-index vertices
@@ -154,27 +177,12 @@ impl Geometry {
     vertices_cloned.reverse();
     
     for vertex in vertices_cloned {
-      // Swap remove to avoid having to shift vertices every time one is
-      // removed
-      self.vertices.swap_remove(vertex as usize);
-      let swapped_vertex = self.vertices.len() as u16;
-      
-      for i in 0..self.triangles.len() {
-        // Delete triangle if it includes deleted vertex
-        if self.triangles[i][0] == vertex ||
-          self.triangles[i][1] == vertex ||
-          self.triangles[i][2] == vertex {
-            self.triangles.swap_remove(i);
-          }
-          
-          // Update indices if swapped vertex is referenced
-          for j in 0..2 {
-            if self.triangles[i][j] == swapped_vertex {
-              self.triangles[i][j] = vertex
-            }
-          }
-      }
+      self.delete_vertex(vertex);
     }
+  }
+  
+  pub fn delete_triangle(&mut self, triangle: u16) {
+    self.triangles.swap_remove(triangle as usize);
   }
   
   pub fn delete_triangles(&mut self, triangles: &Vec<u16>) {
@@ -185,7 +193,7 @@ impl Geometry {
     triangles_cloned.reverse();
     
     for triangle in triangles_cloned {
-      self.triangles.swap_remove(triangle as usize);
+      self.delete_triangle(triangle);
     }
   }
   
@@ -201,16 +209,7 @@ impl Geometry {
       }
       
       if vertex_used {
-        self.vertices.swap_remove(vertex);
-        let swapped_vertex = self.vertices.len() as u16;
-        
-        for i in 0..self.triangles.len() {
-          for j in 0..2 {
-            if self.triangles[i][j] == swapped_vertex {
-              self.triangles[i][j] = vertex as u16;
-            }
-          }
-        }
+        self.delete_vertex(vertex as u16);
       }
     }
   }
@@ -218,17 +217,17 @@ impl Geometry {
   pub fn cube() -> Self {
     Self {
       vertices: vec![
-        [-1.0,  1.0, -1.0],
-        [-1.0,  1.0,  1.0],
+        V3::new(-1.0,  1.0, -1.0),
+        V3::new(-1.0,  1.0,  1.0),
         
-        [-1.0, -1.0, -1.0],
-        [-1.0, -1.0,  1.0],
+        V3::new(-1.0, -1.0, -1.0),
+        V3::new(-1.0, -1.0,  1.0),
         
-        [ 1.0,  1.0, -1.0],
-        [ 1.0,  1.0,  1.0],
+        V3::new( 1.0,  1.0, -1.0),
+        V3::new( 1.0,  1.0,  1.0),
         
-        [ 1.0, -1.0, -1.0],
-        [ 1.0, -1.0,  1.0],
+        V3::new( 1.0, -1.0, -1.0),
+        V3::new( 1.0, -1.0,  1.0),
       ],
       triangles: vec![
         // Top

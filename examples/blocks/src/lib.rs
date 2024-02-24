@@ -52,7 +52,7 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
   gltf.meshes.push(mesh);
   
   let mut red_block = Geometry::cube();
-  red_block.scale(&[1.0, 0.25, 0.3]).translate(&[0.0, -0.75, 4.1]);
+  red_block.scale(V3::new(1.0, 0.25, 0.3)).translate(V3::new(0.0, -0.75, 4.1));
   
   gltf.append_to_glb_bin(red_block.vertices, emg::Type::VEC3,
     emg::ComponentType::Float);
@@ -67,9 +67,10 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
     emg::Target::ElementArrayBuffer);
   
   let mut black_block = Geometry::cube();
-  black_block.scale(&[0.5, 0.25, 0.3]).translate(&[0.0, -0.75, 4.7]);
-  let lower_face_tris = black_block.select_triangles(&[-10.0, -10.0, 4.3],
-    &[10.0, 10.0, 4.5]);
+  black_block.scale(V3::new(0.5, 0.25, 0.3))
+    .translate(V3::new(0.0, -0.75, 4.7));
+  let lower_face_tris = black_block.select_triangles(V3::new(-10.0, -10.0, 4.3),
+    V3::new(10.0, 10.0, 4.5));
   black_block.delete_triangles(&lower_face_tris);
   
   // Monkey patch to get floating point errors to match current test files
