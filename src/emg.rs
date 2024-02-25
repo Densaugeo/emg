@@ -72,13 +72,13 @@ impl std::io::Write for DryRunWriter {
 }
 
 pub struct Geometry {
-  pub vertices: Vec<V3<f32>>,
+  pub vertices: Vec<V3<f64>>,
   
   pub triangles: Vec<[u16; 3]>,
 }
 
 impl Geometry {
-  pub fn translate(&mut self, vector: V3<f32>) -> &mut Self {
+  pub fn translate(&mut self, vector: V3<f64>) -> &mut Self {
     for vertex in &mut self.vertices {
       *vertex += vector;
     }
@@ -86,7 +86,7 @@ impl Geometry {
     self
   }
   
-  pub fn scale(&mut self, vector: V3<f32>) -> &mut Self {
+  pub fn scale(&mut self, vector: V3<f64>) -> &mut Self {
     for vertex in &mut self.vertices {
       vertex.component_mul_assign(&vector);
     }
@@ -102,16 +102,12 @@ impl Geometry {
   
   /// Returns a list of vertices within the bounding box defined by the given
   /// points. Allows error of 1e-6
-  pub fn select_vertices(&self, bound_1: V3<f32>, bound_2: V3<f32>
+  pub fn select_vertices(&self, bound_1: V3<f64>, bound_2: V3<f64>
   ) -> Vec<u16> {
     let mut result = Vec::new();
     
-    let mut lower_bound = [0.0; 3];
-    let mut upper_bound = [0.0; 3];
-    for i in 0..3 {
-      lower_bound[i] = bound_1[i].min(bound_2[i]) - 1e-6;
-      upper_bound[i] = bound_1[i].max(bound_2[i]) + 1e-6;
-    }
+    let lower_bound = bound_1.inf(&bound_2) - V3::new(1e-6, 1e-6, 1e-6);
+    let upper_bound = bound_1.sup(&bound_2) + V3::new(1e-6, 1e-6, 1e-6);
     
     for i in 0..self.vertices.len() {
       if lower_bound[0] < self.vertices[i][0] &&
@@ -129,7 +125,7 @@ impl Geometry {
   
   /// Returns a list of triangles within the bounding box defined by the given
   /// points. Allows error of 1e-6
-  pub fn select_triangles(&self, bound_1: V3<f32>, bound_2: V3<f32>
+  pub fn select_triangles(&self, bound_1: V3<f64>, bound_2: V3<f64>
   ) -> Vec<u16> {
     let mut result = Vec::new();
     
@@ -419,29 +415,58 @@ impl GLTF {
     }
   }
   
-  pub fn append_to_glb_bin<T>(&mut self, buffer: Vec<T>,
-  type_: Type, component_type: ComponentType) {
-    let bytes = (buffer.len() as u32)*(::core::mem::size_of::<T>() as u32);
-    
-    let mut accessor = Accessor::new();
-    accessor.buffer_view = Some(self.buffer_views.len() as u32);
-    accessor.type_ = type_;
-    accessor.component_type = component_type;
-    accessor.count = bytes/type_.component_count()/component_type.byte_count();
-    self.accessors.push(accessor);
+  /// bytes_per_componet is the size of the elements of T. For each, to append
+  /// a Vec<[f64; 3]>, pass bytes_per_component == 8
+  pub fn append_to_glb_bin<I: IntoIterator>(&mut self, buffer: I,
+  type_: Type, component_type: ComponentType, bytes_per_component: u8) {
+    let mut bytes = 0;
+    for value in buffer {
+      let sliced = unsafe { any_as_u8_slice(&value) };
+      
+      let mut read_from = 0;
+      let mut read_to = component_type.byte_count() as usize;
+      while read_to <= sliced.len() {
+        if component_type == ComponentType::Float && bytes_per_component == 8 {
+          // Floats require special handling. Unlike (LE) integers, you can't
+          // just copy the first X bytes and get a valid float
+          let float = f64::from_le_bytes([
+            sliced[read_from + 0],
+            sliced[read_from + 1],
+            sliced[read_from + 2],
+            sliced[read_from + 3],
+            sliced[read_from + 4],
+            sliced[read_from + 5],
+            sliced[read_from + 6],
+            sliced[read_from + 7],
+          ]) as f32;
+          self.glb_bin.extend_from_slice(&float.to_le_bytes());
+        } else{
+          // Integers are simpler: For any LE integer, the first X bytes are a
+          // truncation
+          self.glb_bin.extend_from_slice(&sliced[read_from..read_to]);
+        }
+        // There are other possible cases like f128 sources, but I don't want to
+        // figure that out right now
+        
+        read_from += bytes_per_component as usize;
+        read_to += bytes_per_component as usize;
+        bytes += component_type.byte_count();
+      }
+    }
+    self.buffers[0].byte_length += bytes;
     
     let mut buffer_view = BufferView::new();
     buffer_view.buffer = 0;
     buffer_view.byte_length = bytes;
-    buffer_view.byte_offset = self.glb_bin.len() as u32;
+    buffer_view.byte_offset = (self.glb_bin.len() as u32) - bytes;
     self.buffer_views.push(buffer_view);
     
-    self.buffers[0].byte_length += bytes;
-    
-    for value in buffer {
-      let sliced = unsafe { any_as_u8_slice(&value) };
-      self.glb_bin.extend_from_slice(sliced);
-    }
+    let mut accessor = Accessor::new();
+    accessor.buffer_view = Some((self.buffer_views.len() - 1) as u32);
+    accessor.type_ = type_;
+    accessor.component_type = component_type;
+    accessor.count = bytes/type_.component_count()/component_type.byte_count();
+    self.accessors.push(accessor);
   }
 }
 

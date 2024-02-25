@@ -55,14 +55,14 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
   red_block.scale(V3::new(1.0, 0.25, 0.3)).translate(V3::new(0.0, -0.75, 4.1));
   
   gltf.append_to_glb_bin(red_block.vertices, emg::Type::VEC3,
-    emg::ComponentType::Float);
+    emg::ComponentType::Float, 8);
   gltf.accessors.last_mut().unwrap().min.extend_from_slice(&[-1.0, -1.0, 3.8]);
   gltf.accessors.last_mut().unwrap().max.extend_from_slice(&[ 1.0, -0.5, 4.4]);
   gltf.buffer_views.last_mut().unwrap().target = Some(
     emg::Target::ArrayBuffer);
   
   gltf.append_to_glb_bin(red_block.triangles, emg::Type::SCALAR,
-    emg::ComponentType::UnsignedShort);
+    emg::ComponentType::UnsignedShort, 2);
   gltf.buffer_views.last_mut().unwrap().target = Some(
     emg::Target::ElementArrayBuffer);
   
@@ -73,21 +73,15 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
     V3::new(10.0, 10.0, 4.5));
   black_block.delete_triangles(&lower_face_tris);
   
-  // Monkey patch to get floating point errors to match current test files
-  for i in 0..black_block.vertices.len() {
-    if i % 2 == 0 { black_block.vertices[i][2] = 4.4; }
-    if i % 2 == 1 { black_block.vertices[i][2] = 5.0; }
-  }
-  
   gltf.append_to_glb_bin(black_block.vertices, emg::Type::VEC3,
-    emg::ComponentType::Float);
+    emg::ComponentType::Float, 8);
   gltf.accessors.last_mut().unwrap().min.extend_from_slice(&[-0.5, -1.0, 4.4]);
   gltf.accessors.last_mut().unwrap().max.extend_from_slice(&[ 0.5, -0.5, 5.0]);
   gltf.buffer_views.last_mut().unwrap().target = Some(
     emg::Target::ArrayBuffer);
   
   gltf.append_to_glb_bin(black_block.triangles, emg::Type::SCALAR,
-    emg::ComponentType::UnsignedShort);
+    emg::ComponentType::UnsignedShort, 2);
   gltf.buffer_views.last_mut().unwrap().target = Some(
     emg::Target::ElementArrayBuffer);
   
