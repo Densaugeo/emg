@@ -78,6 +78,16 @@ pub struct Geometry {
 }
 
 impl Geometry {
+  /// Raw vertex byffer, suitable for GLTF packing
+  pub fn vertices_raw(&self) -> impl Iterator + '_ {
+    self.vertices.iter().flat_map(|v| vec![v[0] as f32, v[1] as f32, v[2] as f32])
+  }
+  
+  /// Raw triangle byffer, suitable for GLTF packing
+  pub fn triangles_raw(&self) -> impl Iterator + '_ {
+    self.triangles.iter().flat_map(|v| vec![v[0], v[1], v[2]])
+  }
+  
   pub fn translate(&mut self, vector: V3<f64>) -> &mut Self {
     for vertex in &mut self.vertices {
       *vertex += vector;
@@ -415,43 +425,13 @@ impl GLTF {
     }
   }
   
-  /// bytes_per_componet is the size of the elements of T. For each, to append
-  /// a Vec<[f64; 3]>, pass bytes_per_component == 8
-  pub fn append_to_glb_bin<I: IntoIterator>(&mut self, buffer: I,
-  type_: Type, component_type: ComponentType, bytes_per_component: u8) {
+  pub fn append_to_glb_bin(&mut self, buffer: impl IntoIterator,
+  type_: Type, component_type: ComponentType) {
     let mut bytes = 0;
-    for value in buffer {
+    for value in buffer.into_iter() {
       let sliced = unsafe { any_as_u8_slice(&value) };
-      
-      let mut read_from = 0;
-      let mut read_to = component_type.byte_count() as usize;
-      while read_to <= sliced.len() {
-        if component_type == ComponentType::Float && bytes_per_component == 8 {
-          // Floats require special handling. Unlike (LE) integers, you can't
-          // just copy the first X bytes and get a valid float
-          let float = f64::from_le_bytes([
-            sliced[read_from + 0],
-            sliced[read_from + 1],
-            sliced[read_from + 2],
-            sliced[read_from + 3],
-            sliced[read_from + 4],
-            sliced[read_from + 5],
-            sliced[read_from + 6],
-            sliced[read_from + 7],
-          ]) as f32;
-          self.glb_bin.extend_from_slice(&float.to_le_bytes());
-        } else{
-          // Integers are simpler: For any LE integer, the first X bytes are a
-          // truncation
-          self.glb_bin.extend_from_slice(&sliced[read_from..read_to]);
-        }
-        // There are other possible cases like f128 sources, but I don't want to
-        // figure that out right now
-        
-        read_from += bytes_per_component as usize;
-        read_to += bytes_per_component as usize;
-        bytes += component_type.byte_count();
-      }
+      self.glb_bin.extend_from_slice(sliced);
+      bytes += sliced.len() as u32;
     }
     self.buffers[0].byte_length += bytes;
     
