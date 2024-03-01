@@ -74,18 +74,45 @@ impl std::io::Write for DryRunWriter {
 pub struct Geometry {
   pub vertices: Vec<V3<f64>>,
   
-  pub triangles: Vec<[u16; 3]>,
+  pub triangles: Vec<[u32; 3]>,
 }
 
 impl Geometry {
   /// Raw vertex byffer, suitable for GLTF packing
   pub fn vertices_raw(&self) -> impl Iterator + '_ {
-    self.vertices.iter().flat_map(|v| vec![v[0] as f32, v[1] as f32, v[2] as f32])
+    self.vertices.iter().flat_map(|v| vec![v[0] as f32, v[1] as f32,
+      v[2] as f32])
   }
   
   /// Raw triangle byffer, suitable for GLTF packing
   pub fn triangles_raw(&self) -> impl Iterator + '_ {
-    self.triangles.iter().flat_map(|v| vec![v[0], v[1], v[2]])
+    self.triangles.iter().flat_map(|v| {
+      if self.vertices.len() < 0x10000 {
+        return vec![
+          (v[0]     ) as u8,
+          (v[0] >> 8) as u8,
+          (v[1]     ) as u8,
+          (v[1] >> 8) as u8,
+          (v[2]     ) as u8,
+          (v[2] >> 8) as u8,
+        ]
+      } else {
+        return vec![
+          (v[0]      ) as u8,
+          (v[0] >>  8) as u8,
+          (v[0] >> 16) as u8,
+          (v[0] >> 24) as u8,
+          (v[1]      ) as u8,
+          (v[1] >>  8) as u8,
+          (v[1] >> 16) as u8,
+          (v[1] >> 24) as u8,
+          (v[2]      ) as u8,
+          (v[2] >>  8) as u8,
+          (v[2] >> 16) as u8,
+          (v[2] >> 24) as u8,
+        ]
+      }
+    })
   }
   
   pub fn translate(&mut self, vector: V3<f64>) -> &mut Self {
@@ -113,7 +140,7 @@ impl Geometry {
   /// Returns a list of vertices within the bounding box defined by the given
   /// points. Allows error of 1e-6
   pub fn select_vertices(&self, bound_1: V3<f64>, bound_2: V3<f64>
-  ) -> Vec<u16> {
+  ) -> Vec<u32> {
     let mut result = Vec::new();
     
     let lower_bound = bound_1.inf(&bound_2) - V3::new(1e-6, 1e-6, 1e-6);
@@ -126,7 +153,7 @@ impl Geometry {
          self.vertices[i][1] < upper_bound[1] &&
          lower_bound[2] < self.vertices[i][2] &&
          self.vertices[i][2] < upper_bound[2] {
-        result.push(i as u16);
+        result.push(i as u32);
       }
     }
     
@@ -136,7 +163,7 @@ impl Geometry {
   /// Returns a list of triangles within the bounding box defined by the given
   /// points. Allows error of 1e-6
   pub fn select_triangles(&self, bound_1: V3<f64>, bound_2: V3<f64>
-  ) -> Vec<u16> {
+  ) -> Vec<u32> {
     let mut result = Vec::new();
     
     let bounded_vertices = self.select_vertices(bound_1, bound_2);
@@ -145,7 +172,7 @@ impl Geometry {
       if bounded_vertices.contains(&self.triangles[i][0]) &&
          bounded_vertices.contains(&self.triangles[i][1]) &&
          bounded_vertices.contains(&self.triangles[i][2]) {
-        result.push(i as u16);
+        result.push(i as u32);
       }
     }
     
@@ -153,10 +180,10 @@ impl Geometry {
   }
   
   /// Automatically deletes affected triangles
-  pub fn delete_vertex(&mut self, vertex: u16) {
+  pub fn delete_vertex(&mut self, vertex: u32) {
     // Swap remove to avoid having to shift vertices
     self.vertices.swap_remove(vertex as usize);
-    let swapped_vertex = self.vertices.len() as u16;
+    let swapped_vertex = self.vertices.len() as u32;
     
     for i in 0..self.triangles.len() {
       // Delete triangle if it includes deleted vertex
@@ -175,7 +202,7 @@ impl Geometry {
   }
   
   /// Automatically deletes affected triangles
-  pub fn delete_vertices(&mut self, vertices: &Vec<u16>) {
+  pub fn delete_vertices(&mut self, vertices: &Vec<u32>) {
     // Vertices must be processed in reverse order, because deletion of lower-
     // index vertices can change the index of higher-index vertices
     let mut vertices_cloned = vertices.clone();
@@ -187,11 +214,11 @@ impl Geometry {
     }
   }
   
-  pub fn delete_triangle(&mut self, triangle: u16) {
+  pub fn delete_triangle(&mut self, triangle: u32) {
     self.triangles.swap_remove(triangle as usize);
   }
   
-  pub fn delete_triangles(&mut self, triangles: &Vec<u16>) {
+  pub fn delete_triangles(&mut self, triangles: &Vec<u32>) {
     // Triangles must be processed in reverse order, because deletion of lower-
     // index vertices can change the index of higher-index vertices
     let mut triangles_cloned = triangles.clone();
@@ -209,13 +236,13 @@ impl Geometry {
     for vertex in self.vertices.len()..0 {
       let mut vertex_used = false;
       for triangle in &self.triangles {
-        if triangle.contains(&(vertex as u16)) {
+        if triangle.contains(&(vertex as u32)) {
           vertex_used = true;
         }
       }
       
       if vertex_used {
-        self.delete_vertex(vertex as u16);
+        self.delete_vertex(vertex as u32);
       }
     }
   }
