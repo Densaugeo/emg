@@ -115,6 +115,14 @@ impl Geometry {
     })
   }
   
+  pub fn triangles_raw_component_type(&self) -> ComponentType {
+    if self.vertices.len() < 0x10000 {
+      ComponentType::UnsignedShort
+    } else {
+      ComponentType::UnsignedInt
+    }
+  }
+  
   pub fn translate(&mut self, vector: V3<f64>) -> &mut Self {
     for vertex in &mut self.vertices {
       *vertex += vector;
@@ -313,7 +321,7 @@ impl Geometry {
       Target::ArrayBuffer);
     
     gltf.append_to_glb_bin(self.triangles_raw(), Type::SCALAR,
-      ComponentType::UnsignedShort);
+      self.triangles_raw_component_type());
     gltf.buffer_views.last_mut().unwrap().target = Some(
       Target::ElementArrayBuffer);
   }
