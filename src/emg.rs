@@ -289,6 +289,34 @@ impl Geometry {
       ],
     }
   }
+  
+  // Use self instead of &self to cause a move, because this struct should not
+  // be used again after packing
+  pub fn pack(self, gltf: &mut GLTF) {
+    // Calculate vertex bounds. The vertex bounds are f32 because that is the
+    // sane precision as GLTF vertices
+    let mut min = V3::repeat(f32::MAX);
+    let mut max = V3::repeat(f32::MIN);
+    for vertex in &self.vertices {
+      let vertex = V3::new(vertex.x as f32, vertex.y as f32, vertex.z as f32);
+      min = min.inf(&vertex);
+      max = max.sup(&vertex);
+    }
+    
+    gltf.append_to_glb_bin(self.vertices_raw(), Type::VEC3,
+      ComponentType::Float);
+    // Can .unwrap() because the previous .append_to_glb_bin() call guarantees
+    // .accessors/min/max will be populated
+    gltf.accessors.last_mut().unwrap().min.extend_from_slice(min.as_slice());
+    gltf.accessors.last_mut().unwrap().max.extend_from_slice(max.as_slice());
+    gltf.buffer_views.last_mut().unwrap().target = Some(
+      Target::ArrayBuffer);
+    
+    gltf.append_to_glb_bin(self.triangles_raw(), Type::SCALAR,
+      ComponentType::UnsignedShort);
+    gltf.buffer_views.last_mut().unwrap().target = Some(
+      Target::ElementArrayBuffer);
+  }
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -937,10 +965,10 @@ pub struct Accessor {
   pub type_: Type,
   
   #[serde(skip_serializing_if = "Vec::is_empty")]
-  pub max: Vec<f64>,
+  pub max: Vec<f32>,
   
   #[serde(skip_serializing_if = "Vec::is_empty")]
-  pub min: Vec<f64>,
+  pub min: Vec<f32>,
   
   //pub extensions: ??,
   
