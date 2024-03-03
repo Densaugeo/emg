@@ -748,15 +748,69 @@ pub struct Material {
 }
 
 impl Material {
-  pub fn new() -> Self {
+  pub fn new<S: Into<String>>(name: S) -> Self {
     Self {
-      name: String::from(""),
+      name: name.into(),
       emissive_factor: [0.0, 0.0, 0.0],
       alpha_mode: AlphaMode::OPAQUE,
       alpha_cutoff: 0.5,
       double_sided: false,
       pbr_metallic_roughness: PBRMetallicRoughness::new(),
     }
+  }
+  
+  // Set RGBA color
+  pub fn rgba(&mut self, red: f64, green: f64, blue: f64, alpha: f64) -> &mut
+  Self {
+    self.pbr_metallic_roughness.base_color_factor.r = red;
+    self.pbr_metallic_roughness.base_color_factor.g = blue;
+    self.pbr_metallic_roughness.base_color_factor.b = green;
+    self.pbr_metallic_roughness.base_color_factor.a = alpha;
+    self
+  }
+  
+  // Set RGB color
+  pub fn rgb(&mut self, red: f64, green: f64, blue: f64) -> &mut Self {
+    self.pbr_metallic_roughness.base_color_factor.r = red;
+    self.pbr_metallic_roughness.base_color_factor.g = blue;
+    self.pbr_metallic_roughness.base_color_factor.b = green;
+    self
+  }
+  
+  // Set red color
+  pub fn r(&mut self, red: f64) -> &mut Self {
+    self.pbr_metallic_roughness.base_color_factor.r = red;
+    self
+  }
+  
+  // Set green color
+  pub fn g(&mut self, green: f64) -> &mut Self {
+    self.pbr_metallic_roughness.base_color_factor.g = green;
+    self
+  }
+  
+  // Set blue color
+  pub fn b(&mut self, blue: f64) -> &mut Self {
+    self.pbr_metallic_roughness.base_color_factor.b = blue;
+    self
+  }
+  
+  // Set alpha color
+  pub fn a(&mut self, alpha: f64) -> &mut Self {
+    self.pbr_metallic_roughness.base_color_factor.a = alpha;
+    self
+  }
+  
+  /// Set metallicity
+  pub fn m(&mut self, metallicity: f64) -> &mut Self {
+    self.pbr_metallic_roughness.metallic_factor = metallicity;
+    self
+  }
+  
+  /// Set roughness
+  pub fn rh(&mut self, roughness: f64) -> &mut Self {
+    self.pbr_metallic_roughness.roughness_factor = roughness;
+    self
   }
 }
 

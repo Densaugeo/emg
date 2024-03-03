@@ -15,24 +15,12 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
   node.mesh = Some(0);
   gltf.nodes.push(node);
   
-  let mut material_red = emg::Material::new();
-  material_red.name = String::from("Red");
-  material_red.pbr_metallic_roughness.metallic_factor = 0.0;
-  material_red.pbr_metallic_roughness.roughness_factor = 0.5;
-  material_red.pbr_metallic_roughness.base_color_factor.r = 1.0;
-  material_red.pbr_metallic_roughness.base_color_factor.g = 0.0;
-  material_red.pbr_metallic_roughness.base_color_factor.b = 0.0;
-  material_red.pbr_metallic_roughness.base_color_factor.a = 1.0;
+  let mut material_red = emg::Material::new("Red");
+  material_red.m(0.0).rh(0.5).rgba(1.0, 0.0, 0.0, 1.0);
   gltf.materials.push(material_red);
   
-  let mut material_black = emg::Material::new();
-  material_black.name = String::from("Black");
-  material_black.pbr_metallic_roughness.metallic_factor = 0.0;
-  material_black.pbr_metallic_roughness.roughness_factor = 0.5;
-  material_black.pbr_metallic_roughness.base_color_factor.r = 0.1;
-  material_black.pbr_metallic_roughness.base_color_factor.g = 0.1;
-  material_black.pbr_metallic_roughness.base_color_factor.b = 0.1;
-  material_black.pbr_metallic_roughness.base_color_factor.a = 1.0;
+  let mut material_black = emg::Material::new("Black");
+  material_black.m(0.0).rh(0.5).rgba(0.1, 0.1, 0.1, 1.0);
   gltf.materials.push(material_black);
   
   let mut red_submesh = emg::MeshPrimitive::new();
