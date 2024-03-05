@@ -123,17 +123,23 @@ impl Geometry {
     }
   }
   
-  pub fn translate(&mut self, vector: V3<f64>) -> &mut Self {
+  // Apply a translation
+  pub fn t(&mut self, x: f64, y: f64, z: f64) -> &mut Self {
+    let translation = V3::new(x, y, z);
+    
     for vertex in &mut self.vertices {
-      *vertex += vector;
+      *vertex += translation;
     }
     
     self
   }
   
-  pub fn scale(&mut self, vector: V3<f64>) -> &mut Self {
+  // Apply a scale
+  pub fn s(&mut self, x: f64, y: f64, z: f64) -> &mut Self {
+    let scale = V3::new(x, y, z);
+    
     for vertex in &mut self.vertices {
-      vertex.component_mul_assign(&vector);
+      vertex.component_mul_assign(&scale);
     }
     
     self
@@ -300,7 +306,7 @@ impl Geometry {
   
   // Use self instead of &self to cause a move, because this struct should not
   // be used again after packing
-  pub fn pack(self, gltf: &mut GLTF) {
+  pub fn pack(self, gltf: &mut GLTF) -> MeshPrimitive {
     // Calculate vertex bounds. The vertex bounds are f32 because that is the
     // sane precision as GLTF vertices
     let mut min = V3::repeat(f32::MAX);
@@ -324,6 +330,11 @@ impl Geometry {
       self.triangles_raw_component_type());
     gltf.buffer_views.last_mut().unwrap().target = Some(
       Target::ElementArrayBuffer);
+    
+    let mut result = MeshPrimitive::new();
+    result.attributes.position = Some(gltf.accessors.len() as u32 - 2);
+    result.indices = Some(gltf.accessors.len() as u32 - 1);
+    result
   }
 }
 
@@ -473,17 +484,19 @@ gltf_buffer_element!([[u32; 4]; 4], Type::MAT4, ComponentType::UnsignedInt  );
 gltf_buffer_element!([[f32; 4]; 4], Type::MAT4, ComponentType::Float        );
 
 impl GLTF {
-  pub fn new() -> Self {
+  pub fn new<S: Into<String>>(scene_name: S) -> Self {
+    let scene = Scene::new(scene_name);
+    
     Self {
       asset: Asset::new(),
       nodes: Vec::new(),
       materials: Vec::new(),
-      scene: None,
-      scenes: Vec::new(),
+      scene: Some(0),
+      scenes: vec![scene],
       meshes: Vec::new(),
       accessors: Vec::new(),
       buffer_views: Vec::new(),
-      buffers: vec!(Buffer::new()),
+      buffers: vec!(Buffer::new("")),
       glb_bin: Vec::new(),
     }
   }
@@ -498,18 +511,53 @@ impl GLTF {
     }
     self.buffers[0].byte_length += bytes;
     
-    let mut buffer_view = BufferView::new();
+    let mut buffer_view = BufferView::new("");
     buffer_view.buffer = 0;
     buffer_view.byte_length = bytes;
     buffer_view.byte_offset = (self.glb_bin.len() as u32) - bytes;
     self.buffer_views.push(buffer_view);
     
-    let mut accessor = Accessor::new();
+    let mut accessor = Accessor::new("");
     accessor.buffer_view = Some((self.buffer_views.len() - 1) as u32);
     accessor.type_ = type_;
     accessor.component_type = component_type;
     accessor.count = bytes/type_.component_count()/component_type.byte_count();
     self.accessors.push(accessor);
+  }
+  
+  /// Creates a new node and adds it to the specified scene. If unsure, use
+  /// scene 0
+  pub fn new_root_node<S: Into<String>>(&mut self, scene: u32, name: S) ->
+  *mut Node {
+    let index = self.nodes.len() as u32;
+    self.scenes[scene as usize].nodes.push(index);
+    self.nodes.push(Node::new(name));
+    self.nodes.last_mut().unwrap()
+  }
+  
+  /// Creates a new node and adds it to the specified node
+  pub fn new_node<S: Into<String>>(&mut self, node: u32, name: S) -> &mut Node {
+    let index = self.nodes.len() as u32;
+    self.nodes[node as usize].children.push(index);
+    self.nodes.push(Node::new(name));
+    self.nodes.last_mut().unwrap()
+  }
+  
+  /// Creates a new mesh and adds it to the specified node
+  pub fn new_mesh<S: Into<String>>(&mut self, node: u32, name: S) -> &mut Mesh {
+  let index = self.meshes.len() as u32;
+    self.nodes[node as usize].mesh = Some(index);
+    self.meshes.push(Mesh::new(name));
+    self.meshes.last_mut().unwrap()
+  }
+  
+  pub fn new_material<S: Into<String>>(&mut self, name: S) -> &mut Material {
+    self.materials.push(Material::new(name));
+    
+    // .unwrap() here doesn't unwrap .material, but instead unwraps the result
+    // of calling .as_mut(), and is permissible because .material is guaranteed
+    // to have a value after the previous line
+    self.materials.last_mut().unwrap()
   }
 }
 
@@ -543,8 +591,8 @@ pub struct Scene {
 }
 
 impl Scene {
-  pub fn new() -> Self {
-    Self { name: String::from(""), nodes: Vec::new() }
+  pub fn new<S: Into<String>>(name: S) -> Self {
+    Self { name: name.into(), nodes: Vec::new() }
   }
 }
 
@@ -623,9 +671,9 @@ pub struct Node {
 }
 
 impl Node {
-  pub fn new() -> Self {
+  pub fn new<S: Into<String>>(name: S) -> Self {
     Self {
-      name: String::from(""),
+      name: name.into(),
       mesh: None,
       t: Translation::new(),
       r: Rotation::new(),
@@ -921,6 +969,12 @@ impl MeshPrimitive {
       mode: Mode::Triangles,
     }
   }
+  
+  /// Set material index
+  pub fn material(&mut self, material: u32) -> &mut Self {
+    self.material = Some(material);
+    self
+  }
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -941,12 +995,18 @@ pub struct Mesh {
 }
 
 impl Mesh {
-  pub fn new() -> Self {
+  pub fn new<S: Into<String>>(name: S) -> Self {
     Self {
+      name: name.into(),
       primitives: Vec::new(),
       weights: Vec::new(),
-      name: String::from(""),
     }
+  }
+  
+  pub fn copy_primitive(&mut self, primitive: MeshPrimitive) ->
+  &mut MeshPrimitive {
+    self.primitives.push(primitive);
+    self.primitives.last_mut().unwrap()
   }
 }
 
@@ -1042,9 +1102,9 @@ pub struct Accessor {
 }
 
 impl Accessor {
-  pub fn new() -> Self {
+  pub fn new<S: Into<String>>(name: S) -> Self {
     Self {
-      name: String::from(""),
+      name: name.into(),
       buffer_view: None,
       byte_offset: 0,
       component_type: ComponentType::Byte,
@@ -1099,9 +1159,9 @@ pub struct BufferView {
 }
 
 impl BufferView {
-  pub fn new() -> Self {
+  pub fn new<S: Into<String>>(name: S) -> Self {
     Self {
-      name: String::from(""),
+      name: name.into(),
       buffer: 0,
       byte_length: 0,
       byte_offset: 0,
@@ -1129,9 +1189,9 @@ pub struct Buffer {
 }
 
 impl Buffer {
-  pub fn new() -> Self {
+  pub fn new<S: Into<String>>(name: S) -> Self {
     Self {
-      name: String::from(""),
+      name: name.into(),
       byte_length: 0,
       uri: String::from(""),
     }
