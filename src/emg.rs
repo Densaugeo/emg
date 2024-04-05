@@ -71,10 +71,18 @@ impl std::io::Write for DryRunWriter {
   }
 }
 
+pub enum SelectionType {
+  VERTICES,
+  TRIANGLES,
+}
+
 pub struct Geometry {
   pub vertices: Vec<V3<f64>>,
   
   pub triangles: Vec<[u32; 3]>,
+  
+  pub selection: Vec<u32>,
+  pub selection_type: SelectionType,
 }
 
 impl Geometry {
@@ -153,9 +161,9 @@ impl Geometry {
   
   /// Returns a list of vertices within the bounding box defined by the given
   /// points. Allows error of 1e-6
-  pub fn select_vertices(&self, bound_1: V3<f64>, bound_2: V3<f64>
-  ) -> Vec<u32> {
-    let mut result = Vec::new();
+  pub fn select_vertices(&mut self, bound_1: V3<f64>, bound_2: V3<f64>) {
+    self.selection.drain(..);
+    self.selection_type = SelectionType::VERTICES;
     
     let lower_bound = bound_1.inf(&bound_2) - V3::new(1e-6, 1e-6, 1e-6);
     let upper_bound = bound_1.sup(&bound_2) + V3::new(1e-6, 1e-6, 1e-6);
@@ -167,30 +175,27 @@ impl Geometry {
          self.vertices[i][1] < upper_bound[1] &&
          lower_bound[2] < self.vertices[i][2] &&
          self.vertices[i][2] < upper_bound[2] {
-        result.push(i as u32);
+        self.selection.push(i as u32);
       }
     }
-    
-    result
   }
   
   /// Returns a list of triangles within the bounding box defined by the given
   /// points. Allows error of 1e-6
-  pub fn select_triangles(&self, bound_1: V3<f64>, bound_2: V3<f64>
-  ) -> Vec<u32> {
-    let mut result = Vec::new();
+  pub fn select_triangles(&mut self, bound_1: V3<f64>, bound_2: V3<f64>) {
+    self.select_vertices(bound_1, bound_2);
+    let bounded_vertices = self.selection.clone();
     
-    let bounded_vertices = self.select_vertices(bound_1, bound_2);
+    self.selection.drain(..);
+    self.selection_type = SelectionType::TRIANGLES;
     
     for i in 0..self.triangles.len() {
       if bounded_vertices.contains(&self.triangles[i][0]) &&
          bounded_vertices.contains(&self.triangles[i][1]) &&
          bounded_vertices.contains(&self.triangles[i][2]) {
-        result.push(i as u32);
+        self.selection.push(i as u32);
       }
     }
-    
-    result
   }
   
   /// Automatically deletes affected triangles
@@ -213,33 +218,34 @@ impl Geometry {
         }
       }
     }
+    
+    self.selection.drain(..);
   }
   
   /// Automatically deletes affected triangles
-  pub fn delete_vertices(&mut self, vertices: &Vec<u32>) {
+  pub fn delete_vertices(&mut self) {
     // Vertices must be processed in reverse order, because deletion of lower-
     // index vertices can change the index of higher-index vertices
-    let mut vertices_cloned = vertices.clone();
-    vertices_cloned.sort_unstable();
-    vertices_cloned.reverse();
+    self.selection.sort_unstable();
+    self.selection.reverse();
     
-    for vertex in vertices_cloned {
+    for vertex in self.selection.clone() {
       self.delete_vertex(vertex);
     }
   }
   
   pub fn delete_triangle(&mut self, triangle: u32) {
     self.triangles.swap_remove(triangle as usize);
+    self.selection.drain(..);
   }
   
-  pub fn delete_triangles(&mut self, triangles: &Vec<u32>) {
+  pub fn delete_triangles(&mut self) {
     // Triangles must be processed in reverse order, because deletion of lower-
     // index vertices can change the index of higher-index vertices
-    let mut triangles_cloned = triangles.clone();
-    triangles_cloned.sort_unstable();
-    triangles_cloned.reverse();
+    self.selection.sort_unstable();
+    self.selection.reverse();
     
-    for triangle in triangles_cloned {
+    for triangle in self.selection.clone() {
       self.delete_triangle(triangle);
     }
   }
@@ -301,6 +307,8 @@ impl Geometry {
         [0, 4, 2],
         [2, 4, 6],
       ],
+      selection: Vec::new(),
+      selection_type: SelectionType::VERTICES,
     }
   }
   

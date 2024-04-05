@@ -23,9 +23,9 @@ fn build_the_model(_a: i32) -> Result<GLTF, ErrorCode> {
   
   let mut black_block = Geometry::cube();
   black_block.s(0.5, 0.25, 0.3).t(0.0, -0.75, 4.7);
-  let lower_face_tris = black_block.select_triangles(V3::new(-10.0, -10.0, 4.3),
+  black_block.select_triangles(V3::new(-10.0, -10.0, 4.3),
     V3::new(10.0, 10.0, 4.5));
-  black_block.delete_triangles(&lower_face_tris);
+  black_block.delete_triangles();
   let black_submesh = black_block.pack(&mut gltf);
   gltf.meshes[mesh].copy_primitive(black_submesh).material(black);
   
